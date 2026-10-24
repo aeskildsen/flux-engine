@@ -1,0 +1,12 @@
+{
+  "name": "flux-engine",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "test:web": "playwright test -c test/web"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

@@ -14,7 +14,9 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `isospin-release.env` | The isospin release (version and SHA-256) that the UGen sources come from |
 | `scripts/prepare.sh` | Applies the patches and puts the isospin UGen sources into `build/isospin` |
 | `scripts/build-native.sh` | Builds the native server into `build/native` |
-| `test/` | Tests of the built engine |
+| `scripts/build-web.sh` | Builds the web engine (wasm, client, workers) into `build/web/dist` |
+| `Containerfile`, `scripts/in-image.sh` | The toolchain image, and a command to run the scripts in it |
+| `test/` | Tests of the built engine (`test/web`: the web engine in Chromium) |
 
 ## UGens
 
@@ -33,6 +35,46 @@ test/native-woodbar.sh
 ```
 
 `test/native-woodbar.sh` also needs sclang and scsynth with the `PhysWoodbar` class and plugin installed, and `uv`.
+
+## Build and test (web)
+
+The web build needs the toolchain of SuperSonic's web build:
+
+| Part | Version |
+|---|---|
+| Emscripten SDK | 4.0.21 |
+| Rust | `nightly-2026-07-02` with `rust-src`, targets `wasm32-unknown-emscripten` and `wasm32-unknown-unknown`; stable 1.99.1 for the native build |
+| wasm-bindgen-cli | 0.2.127 |
+| Node.js | the one in the Emscripten SDK |
+| Chromium (tests) | the one of `@playwright/test` 1.62.1 |
+
+The `Containerfile` is the record of these versions. The scripts run the same in the toolchain image and on a host that has the toolchain (for example the `dev` box, with the Emscripten SDK in `~/emsdk`).
+
+```sh
+scripts/build-web.sh
+npm ci
+npx playwright install chromium
+npx playwright test -c test/web
+```
+
+The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) in two modes:
+
+- **SAB**: the page is cross-origin isolated (COOP and COEP headers) and SuperSonic uses shared memory.
+- **postMessage**: the page has no such headers, the same as GitHub Pages, and SuperSonic uses postMessage.
+
+In both modes the tests read the output with `AnalyserNode`s on the engine's output node. In SAB mode they also check SuperSonic's audio capture.
+
+The same in the toolchain image (needs `podman`):
+
+```sh
+scripts/in-image.sh scripts/build-web.sh
+scripts/in-image.sh npm ci
+scripts/in-image.sh npx playwright test -c test/web
+```
+
+The image has no SuperCollider, so `test/native-woodbar.sh` does not run in it. The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
+
+**Size of the engine:** `scsynth-nrt.wasm` is 1,628,851 bytes (1.6 MB; Release build in the toolchain image, isospin 0.1.0, SuperSonic 0.91.0, 2026-10-24). A build in the `dev` box gives 1,628,608 bytes from the same sources.
 
 ## Change a UGen locally
 
