@@ -1,0 +1,3 @@
+[submodule "supersonic"]
+	path = supersonic
+	url = https://github.com/samaaron/supersonic.git

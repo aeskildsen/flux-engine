@@ -1,0 +1,61 @@
+diff --git i/dsp/scsynth/CMakeLists.txt w/dsp/scsynth/CMakeLists.txt
+index 0efda224a..ba3a7901c 100644
+--- i/dsp/scsynth/CMakeLists.txt
++++ w/dsp/scsynth/CMakeLists.txt
+@@ -94,6 +94,32 @@ set(SCSYNTH_PLUGIN_SOURCES
+     synth/plugins/sc3-plugins/DistortionUGens.cpp
+     synth/plugins/sc3-plugins/MdaUGens.cpp)
+ 
++# Extra plugins: a CMake file that adds UGens to the engine without a change to
++# this file. Set SCSYNTH_EXTRA_PLUGINS (a cache variable or an environment
++# variable of the same name) to the path of that file. The file:
++#  - appends its plugin sources to SCSYNTH_PLUGIN_SOURCES (absolute paths),
++#  - can set source properties on them (INCLUDE_DIRECTORIES,
++#    COMPILE_DEFINITIONS), so that their settings stay out of the engine's own
++#    sources,
++#  - sets SCSYNTH_EXTRA_PLUGINS_HEADER to a header that declares the plugins'
++#    load functions and defines `void SC_ExtraPlugins_Load(InterfaceTable*)`,
++#    which calls them. SC_Lib_Cintf.cpp includes this header and calls the
++#    function after the built-in plugins.
++if(DEFINED ENV{SCSYNTH_EXTRA_PLUGINS})
++    set(SCSYNTH_EXTRA_PLUGINS "$ENV{SCSYNTH_EXTRA_PLUGINS}")
++endif()
++set(SCSYNTH_EXTRA_PLUGINS "${SCSYNTH_EXTRA_PLUGINS}" CACHE FILEPATH
++    "CMake file that adds plugins to the engine (empty: none)")
++if(SCSYNTH_EXTRA_PLUGINS)
++    include("${SCSYNTH_EXTRA_PLUGINS}")
++    if(NOT SCSYNTH_EXTRA_PLUGINS_HEADER)
++        message(FATAL_ERROR
++            "${SCSYNTH_EXTRA_PLUGINS} does not set SCSYNTH_EXTRA_PLUGINS_HEADER")
++    endif()
++    set_property(SOURCE synth/server/SC_Lib_Cintf.cpp APPEND PROPERTY
++        COMPILE_DEFINITIONS "SC_EXTRA_PLUGINS_HEADER=\"${SCSYNTH_EXTRA_PLUGINS_HEADER}\"")
++endif()
++
+ # Where -D looks (a host reads it; the engine reads no files). Native only.
+ if(NOT EMSCRIPTEN)
+     list(APPEND SCSYNTH_PLATFORM_SOURCES scsynth_synthdef_dirs.cpp)
+diff --git i/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp w/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
+index 2a6631a85..e977e7797 100644
+--- i/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
++++ w/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
+@@ -27,6 +27,10 @@
+ #include "SC_WorldOptions.h"
+ #include "SC_InterfaceTable.h"
+ #include <stdexcept>
++#ifdef SC_EXTRA_PLUGINS_HEADER
++// Plugins added at build time (SCSYNTH_EXTRA_PLUGINS in dsp/scsynth/CMakeLists.txt).
++#    include SC_EXTRA_PLUGINS_HEADER
++#endif
+ 
+ // TAU NOTE: Dynamic plugin loading code has been removed.
+ // SuperSonic compiles with -DSTATIC_PLUGINS — all UGen plugins are statically
+@@ -147,5 +151,8 @@ void initialize_library(const char* uGensPluginPath) {
+     DemoUGens_Load(&gInterfaceTable);
+     LinkUGen_Load(&gInterfaceTable);
+     SPLimiterUGen_Load(&gInterfaceTable);
++#    ifdef SC_EXTRA_PLUGINS_HEADER
++    SC_ExtraPlugins_Load(&gInterfaceTable);
++#    endif
+ #endif // STATIC_PLUGINS
+ }
