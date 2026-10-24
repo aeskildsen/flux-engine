@@ -38,12 +38,44 @@ fi
 
 "$root/scripts/prepare.sh"
 
+# Reproducible output: the build must not write the paths of this checkout or
+# of the toolchain into the wasm, so that the same sources give the same bytes
+# in the toolchain image and on a host.
+#  - Rust: cargo's trim-paths profile setting maps the standard library
+#    sources to /rustc/<commit>, the workspace to relative paths and the
+#    dependencies to <name>-<version>. It is unstable in the pinned nightly
+#    (stable from Rust 1.101), so the [unstable] key enables it; both keys are
+#    set as cargo config environment variables. A RUSTFLAGS
+#    --remap-path-prefix does not work here: clockwork sets its own RUSTFLAGS
+#    for the wasm target, and cargo uses only one source of flags.
+#    https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#profile-trim-paths-option
+#    https://doc.rust-lang.org/nightly/cargo/reference/config.html#environment-variables
+#  - C and C++: -ffile-prefix-map remaps paths in __FILE__, __builtin_FILE()
+#    and debug information. CMake reads CFLAGS and CXXFLAGS only when it
+#    configures a new build folder, so an older folder needs --clean.
+#    https://clang.llvm.org/docs/ClangCommandLineReference.html
+#    https://cmake.org/cmake/help/v3.28/envvar/CXXFLAGS.html
+export CARGO_UNSTABLE_TRIM_PATHS=true
+export CARGO_PROFILE_RELEASE_TRIM_PATHS=object
+emsdk_root=$(cd "$(dirname "$(command -v emcc)")/../.." && pwd)
+prefix_map="-ffile-prefix-map=$root=/flux-engine -ffile-prefix-map=$emsdk_root=/emsdk"
+export CFLAGS="${CFLAGS:+$CFLAGS }$prefix_map"
+export CXXFLAGS="${CXXFLAGS:+$CXXFLAGS }$prefix_map"
+cache="$supersonic/build/web/CMakeCache.txt"
+if [ -f "$cache" ] && ! grep -qF -- "-ffile-prefix-map=$root=/flux-engine" "$cache"; then
+	echo "build-web: $supersonic/build/web was configured without the path maps (or from another path); run with --clean" >&2
+	exit 1
+fi
+
 # SuperSonic's build bundles the JavaScript with the esbuild in its
 # node_modules (versions from its package-lock.json).
 if [ ! -x "$supersonic/node_modules/.bin/esbuild" ]; then
 	(cd "$supersonic" && npm ci --no-audit --no-fund)
 fi
 
+# esbuild writes the source paths into the bundles relative to the working
+# folder, so the build always runs from the repository root.
+cd "$root"
 SCSYNTH_EXTRA_PLUGINS="$root/plugins/extra-plugins.cmake" \
 	"$supersonic/scripts/build-web.sh" "${args[@]}"
 

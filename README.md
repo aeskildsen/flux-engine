@@ -75,7 +75,9 @@ scripts/in-image.sh npx playwright test -c test/web
 
 The image has no SuperCollider, so `test/native-woodbar.sh` does not run in it. The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
 
-**Size of the engine:** `scsynth-nrt.wasm` is 1,628,866 bytes (1.6 MB; Release build in the toolchain image, isospin 0.2.0, SuperSonic 0.91.0, 2026-10-24). A build in the `dev` box gives a slightly different size from the same sources (1,628,608 bytes with isospin 0.1.0).
+**Reproducible output.** The web build and the package give the same bytes from the same commit, in the toolchain image and on a host with the same toolchain versions, from any checkout path. `scripts/build-web.sh` keeps the build paths out of the output: cargo's `trim-paths` for Rust, and `-ffile-prefix-map` for C and C++ (the paths become `/flux-engine/…`, `/emsdk/…` and `/rustc/<commit>/…`). CMake reads these flags only when it configures a new build folder, so `build-web.sh` stops when the build folder was configured without them; run it once with `--clean`. The native build does not remove the paths.
+
+**Size of the engine:** `scsynth-nrt.wasm` is 1,627,500 bytes (1.6 MB; Release build, isospin 0.2.0, SuperSonic 0.91.0, 2026-10-24).
 
 ## Engine package
 
