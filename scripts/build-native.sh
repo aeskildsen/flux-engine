@@ -36,3 +36,6 @@ cmake -B "$build" -G Ninja \
 cmake --build "$build" --config "$build_type"
 
 echo "build-native: built $build/SuperSonic"
+if grep -qx 'kind=development' "$root/build/isospin/BUILDINFO"; then
+	echo "build-native: WARNING: development build (isospin UGens from a working copy); do not release it" >&2
+fi

@@ -1,6 +1,3 @@
 [submodule "supersonic"]
 	path = supersonic
 	url = https://github.com/samaaron/supersonic.git
-[submodule "isospin"]
-	path = isospin
-	url = https://github.com/aeskildsen/isospin.git
