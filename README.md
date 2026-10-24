@@ -15,6 +15,7 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `scripts/prepare.sh` | Applies the patches and puts the isospin UGen sources into `build/isospin` |
 | `scripts/build-native.sh` | Builds the native server into `build/native` |
 | `scripts/build-web.sh` | Builds the web engine (wasm, client, workers) into `build/web/dist` |
+| `scripts/package.py`, `engine-version.env` | Makes the engine package for Flux from the web build, and its version |
 | `Containerfile`, `scripts/in-image.sh` | The toolchain image, and a command to run the scripts in it |
 | `test/` | Tests of the built engine (`test/web`: the web engine in Chromium) |
 
@@ -75,6 +76,33 @@ scripts/in-image.sh npx playwright test -c test/web
 The image has no SuperCollider, so `test/native-woodbar.sh` does not run in it. The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
 
 **Size of the engine:** `scsynth-nrt.wasm` is 1,628,851 bytes (1.6 MB; Release build in the toolchain image, isospin 0.1.0, SuperSonic 0.91.0, 2026-10-24). A build in the `dev` box gives 1,628,608 bytes from the same sources.
+
+## Engine package
+
+The engine package is what Flux takes from this repository: the web engine and the SuperCollider class files of the UGens.
+
+```sh
+scripts/build-web.sh
+scripts/package.py
+```
+
+The result is in `build/package`:
+
+| Path | What it is |
+|---|---|
+| `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/scsynth-nrt.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
+| `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release), for the sclang class path |
+| `flux-engine-<version>/BUILDINFO`, `LICENSE`, `NOTICE.md` | The kind of build and the source commits, the licence, and where the corresponding source is |
+| `flux-engine-<version>.tgz`, `.tgz.sha256` | The same folder as a tarball (the same input gives the same bytes), and its SHA-256 |
+| `latest` | A link to the last package folder |
+
+The version is `<SuperSonic version>-flux.<n>`, from `engine-version.env`. A development build (isospin from `ISOSPIN_DIR`, or a working tree with changes) gets the suffix `-dev` and `kind=development` in `BUILDINFO`. Do not release it.
+
+To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the package folder when you start Flux's dev server (see Flux's README):
+
+```sh
+FLUX_ENGINE_DIR=~/gp/audio/flux-engine/build/package/latest pnpm dev
+```
 
 ## Change a UGen locally
 
