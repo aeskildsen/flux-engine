@@ -10,6 +10,8 @@ of that folder:
         BUILDINFO    the kind of build, the version and the source commits
         LICENSE      AGPL-3.0-or-later
         NOTICE.md    the licences and where the corresponding source is
+        package.json the name and version, so that a package manager can
+                     install the tarball from its URL (it is not on npm)
     build/package/flux-engine-<version>.tgz (and .tgz.sha256)
     build/package/latest -> flux-engine-<version>
 
@@ -155,6 +157,17 @@ def main() -> None:
     ugens = "\n".join(f"- `{p.stem}`" for p in classes)
     (folder / "NOTICE.md").write_text(NOTICE.format(
         version=version, ugens=ugens, isospin=isospin.get("version"), commit=commit))
+    manifest = {
+        "name": "flux-engine",
+        "version": version,
+        "description": "SuperSonic (scsynth in the browser) with the flux-engine UGens: "
+                       "the web engine in dist/, the SuperCollider class files in classes/",
+        "license": "AGPL-3.0-or-later",
+        "repository": "github:aeskildsen/flux-engine",
+        # Not for the npm registry: the package is a GitHub release file.
+        "private": True,
+    }
+    (folder / "package.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     tarball = OUT / f"{name}.tgz"
     pack(folder, tarball, name)

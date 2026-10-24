@@ -95,6 +95,7 @@ The result is in `build/package`:
 | `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/scsynth-nrt.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
 | `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release), for the sclang class path |
 | `flux-engine-<version>/BUILDINFO`, `LICENSE`, `NOTICE.md` | The kind of build and the source commits, the licence, and where the corresponding source is |
+| `flux-engine-<version>/package.json` | The name and version, so that a package manager (Flux uses pnpm) can install the tarball from its release URL |
 | `flux-engine-<version>.tgz`, `.tgz.sha256` | The same folder as a tarball (the same input gives the same bytes), and its SHA-256 |
 | `latest` | A link to the last package folder |
 
