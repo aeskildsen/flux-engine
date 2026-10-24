@@ -75,7 +75,7 @@ scripts/in-image.sh npx playwright test -c test/web
 
 The image has no SuperCollider, so `test/native-woodbar.sh` does not run in it. The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
 
-**Size of the engine:** `scsynth-nrt.wasm` is 1,628,851 bytes (1.6 MB; Release build in the toolchain image, isospin 0.1.0, SuperSonic 0.91.0, 2026-10-24). A build in the `dev` box gives 1,628,608 bytes from the same sources.
+**Size of the engine:** `scsynth-nrt.wasm` is 1,628,866 bytes (1.6 MB; Release build in the toolchain image, isospin 0.2.0, SuperSonic 0.91.0, 2026-10-24). A build in the `dev` box gives a slightly different size from the same sources (1,628,608 bytes with isospin 0.1.0).
 
 ## Engine package
 
