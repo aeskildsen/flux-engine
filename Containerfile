@@ -4,8 +4,20 @@
 # versions; the image is the reference.
 #
 # Build and use it with scripts/in-image.sh (podman). The image has no
-# Faust: the UGen sources come from the isospin release. It has no
-# SuperCollider either, so test/native-woodbar.sh does not run in it.
+# Faust: the UGen sources come from the isospin release.
+
+# SuperCollider 3.14.1 for the native reference test (test/native-woodbar.sh),
+# from nixpkgs at a pinned commit. The Nix image builds it (from the binary
+# cache) and gives the package with its dependencies (its closure) to the
+# image below; the image needs no Nix. The commit is the one that also gives
+# the Faust version of the isospin releases.
+FROM docker.io/nixos/nix:2.31.5@sha256:a0aa04d262a7682c5ff57438784808f2779de5413476417d2850e02f940464de AS supercollider
+RUN nix --extra-experimental-features 'nix-command flakes' build \
+      --out-link /supercollider \
+      github:NixOS/nixpkgs/7fd4004d0511991fff3a0524856a9be09e28c5f0#supercollider \
+ && mkdir -p /out/nix/store /out/opt \
+ && cp -a $(nix-store --query --requisites /supercollider) /out/nix/store/ \
+ && ln -s "$(readlink /supercollider)" /out/opt/supercollider
 
 # Ubuntu 24.04 (noble), amd64, pinned by digest.
 FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
@@ -53,5 +65,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN npx --yes playwright@1.62.1 install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/* /root/.npm
+
+# SuperCollider (see the first stage) and numpy for test/compare-renders.py.
+# sclang uses QtWebEngine, which stops when it runs as root with its sandbox;
+# the image runs as root.
+COPY --from=supercollider /out/ /
+ENV PATH=/opt/supercollider/bin:$PATH QTWEBENGINE_DISABLE_SANDBOX=1
+RUN apt-get update && apt-get install -y --no-install-recommends python3-numpy \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work

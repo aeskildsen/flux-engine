@@ -44,7 +44,14 @@ scripts/build-native.sh
 test/native-woodbar.sh
 ```
 
-`test/native-woodbar.sh` also needs sclang and scsynth with the `PhysWoodbar` class and plugin installed, and `uv`.
+`test/native-woodbar.sh` compares the headless SuperSonic with a render in native scsynth. It also needs sclang and scsynth 3.14.1 on `PATH` (the toolchain image has them from nixpkgs), and numpy for `python3` (else `uv`). It builds the isospin UGens as a plugin for native scsynth (`test/native-plugin`) and takes their classes from `build/isospin/classes`; it does not use the SuperCollider extensions of the machine. It also checks that the SynthDef that the class makes is the same as the fixture of the web tests (`test/assets/wb.scsyndef`).
+
+The same in the toolchain image:
+
+```sh
+scripts/in-image.sh scripts/build-native.sh
+scripts/in-image.sh test/native-woodbar.sh
+```
 
 ## Build and test (web)
 
@@ -82,7 +89,7 @@ scripts/in-image.sh npm ci
 scripts/in-image.sh npx playwright test -c test/web
 ```
 
-The image has no SuperCollider, so `test/native-woodbar.sh` does not run in it. The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
+The build folders of the image and of a host build are not compatible; use `--clean` when you change from one to the other.
 
 **Reproducible output.** The web build and the package give the same bytes from the same commit, in the toolchain image and on a host with the same toolchain versions, from any checkout path. `scripts/build-web.sh` keeps the build paths out of the output: cargo's `trim-paths` for Rust, and `-ffile-prefix-map` for C and C++ (the paths become `/flux-engine/…`, `/emsdk/…` and `/rustc/<commit>/…`). CMake reads these flags only when it configures a new build folder, so `build-web.sh` stops when the build folder was configured without them; run it once with `--clean`. The native build does not remove the paths.
 
