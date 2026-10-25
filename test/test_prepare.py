@@ -83,6 +83,104 @@ class RenderPlugins(unittest.TestCase):
                       header)
 
 
+PLAITS = {"name": "MiPlaits", "root": "mi-UGens", "load": "MiPlaits_Load",
+          "sources": ["projects/MiPlaits/*.cpp"], "include_dirs": ["eurorack"],
+          "defines": ["TEST"], "files": ["eurorack/a.cc", "projects/MiPlaits/MiPlaits.cpp"]}
+
+PLAITS_CMAKE = textwrap.dedent("""\
+
+    # MiPlaits (from mi-UGens).
+    set(FLUX_ENGINE_MIPLAITS_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/../../mi-UGens/eurorack/a.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/../../mi-UGens/projects/MiPlaits/MiPlaits.cpp")
+    list(APPEND SCSYNTH_PLUGIN_SOURCES ${FLUX_ENGINE_MIPLAITS_SOURCES})
+    set_source_files_properties(${FLUX_ENGINE_MIPLAITS_SOURCES} PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../../mi-UGens/eurorack"
+        COMPILE_DEFINITIONS "TEST")
+    """)
+
+
+class RenderSources(unittest.TestCase):
+    def test_sources_entry(self):
+        cmake, header = prepare.render_plugins({"isospin": PIN, "sources": [PLAITS]})
+        self.assertIn(PLAITS_CMAKE, cmake)
+        self.assertTrue(cmake.endswith(
+            '\nset(SCSYNTH_EXTRA_PLUGINS_HEADER "${CMAKE_CURRENT_LIST_DIR}/extra-plugins.h")\n'))
+        self.assertIn("\nstruct InterfaceTable;\n\n// MiPlaits (from mi-UGens).\n"
+                      "void MiPlaits_Load(InterfaceTable* table);\n", header)
+        self.assertIn("    Isospin_Load(table);\n    MiPlaits_Load(table);\n}\n", header)
+
+    def test_c_linkage(self):
+        _, header = prepare.render_plugins({"sources": [{**PLAITS, "linkage": "c"}]})
+        self.assertIn('extern "C" void MiPlaits_Load(InterfaceTable* table);', header)
+
+    def test_a_shared_file_is_built_once(self):
+        rings = {**PLAITS, "name": "MiRings", "load": "MiRings_Load",
+                 "files": ["eurorack/a.cc", "projects/MiRings/MiRings.cpp"]}
+        cmake, header = prepare.render_plugins({"sources": [PLAITS, rings]})
+        self.assertEqual(cmake.count("mi-UGens/eurorack/a.cc"), 1)
+        self.assertIn("projects/MiRings/MiRings.cpp", cmake)
+        self.assertIn("MiRings_Load(table);", header)
+
+    def test_a_shared_file_with_other_settings_stops(self):
+        rings = {**PLAITS, "name": "MiRings", "load": "MiRings_Load", "defines": [],
+                 "files": ["eurorack/a.cc"]}
+        with self.assertRaisesRegex(prepare.PrepareError, "eurorack/a.cc is in MiPlaits and in MiRings"):
+            prepare.render_plugins({"sources": [PLAITS, rings]})
+
+
+class ResolveSources(unittest.TestCase):
+    def test_globs_become_a_sorted_file_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "mi-UGens"
+            for rel in ["p/dsp/b.cc", "p/dsp/engine/a.cc", "p/settings.cc", "p/x.cpp"]:
+                (base / rel).parent.mkdir(parents=True, exist_ok=True)
+                (base / rel).write_text("")
+            entry = {**PLAITS, "sources": ["p/x.cpp", "p/dsp/**/*.cc"]}
+            del entry["files"]
+            resolved = prepare.resolve_sources({"sources": [entry]}, Path(tmp))
+        self.assertEqual(resolved["sources"][0]["files"],
+                         ["p/dsp/b.cc", "p/dsp/engine/a.cc", "p/x.cpp"])
+
+    def test_a_glob_without_match_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {**PLAITS, "sources": ["nothing/*.cc"]}
+            with self.assertRaisesRegex(prepare.PrepareError, "no file matches mi-UGens/nothing"):
+                prepare.resolve_sources({"sources": [entry]}, Path(tmp))
+
+
+class Classes(unittest.TestCase):
+    def test_isospin_and_sources_classes_are_synced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "isospin" / "classes").mkdir(parents=True)
+            (tmp / "isospin" / "classes" / "PhysWoodbar.sc").write_text("wb")
+            (tmp / "mi-UGens" / "sc").mkdir(parents=True)
+            (tmp / "mi-UGens" / "sc" / "MiPlaits.sc").write_text("pl")
+            dest = tmp / "classes"
+            dest.mkdir()
+            (dest / "Old.sc").write_text("old")
+            manifest = {"isospin": PIN, "sources": [{**PLAITS, "classes": ["sc/MiPlaits.sc"]}]}
+            files = prepare.class_files(manifest, tmp, tmp / "isospin")
+            prepare.sync_classes(files, dest)
+            self.assertEqual(sorted(p.name for p in dest.iterdir()), ["MiPlaits.sc", "PhysWoodbar.sc"])
+
+    def test_two_classes_with_one_name_stop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a, b = Path(tmp) / "a" / "X.sc", Path(tmp) / "b" / "X.sc"
+            for p in (a, b):
+                p.parent.mkdir()
+                p.write_text("")
+            with self.assertRaisesRegex(prepare.PrepareError, "two class files are named X.sc"):
+                prepare.sync_classes([a, b], Path(tmp) / "classes")
+
+    def test_a_missing_class_file_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = {"sources": [{**PLAITS, "classes": ["sc/MiPlaits.sc"]}]}
+            with self.assertRaisesRegex(prepare.PrepareError, "no class file mi-UGens/sc/MiPlaits.sc"):
+                prepare.class_files(manifest, Path(tmp), Path(tmp) / "isospin")
+
+
 class LoadManifest(unittest.TestCase):
     def load(self, text: str) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,6 +199,20 @@ class LoadManifest(unittest.TestCase):
     def test_isospin_needs_version_and_sha256(self):
         with self.assertRaisesRegex(prepare.PrepareError, "isospin.sha256"):
             self.load('[isospin]\nversion = "0.2.0"\n')
+
+    def test_sources_entry_checks(self):
+        good = '[[sources]]\nname = "MiPlaits"\nroot = "mi-UGens"\nsources = ["a.cc"]\nload = "MiPlaits_Load"\n'
+        self.assertEqual(self.load(good)["sources"][0]["name"], "MiPlaits")
+        with self.assertRaisesRegex(prepare.PrepareError, "sources.load is missing"):
+            self.load('[[sources]]\nname = "X"\nroot = "r"\nsources = ["a.cc"]\n')
+        with self.assertRaisesRegex(prepare.PrepareError, "sources.sources must be a list"):
+            self.load(good.replace('["a.cc"]', '"a.cc"'))
+        with self.assertRaisesRegex(prepare.PrepareError, "sources.linkage must be"):
+            self.load(good + 'linkage = "rust"\n')
+        with self.assertRaisesRegex(prepare.PrepareError, "sources.load must be a C function name"):
+            self.load(good.replace("MiPlaits_Load", "Mi Plaits"))
+        with self.assertRaisesRegex(prepare.PrepareError, "two sources entries are named MiPlaits"):
+            self.load(good + good)
 
     def test_isospin_unknown_key(self):
         with self.assertRaisesRegex(prepare.PrepareError, "isospin.url"):

@@ -26,6 +26,7 @@ Usage: scripts/package.py
 """
 import gzip
 import hashlib
+import importlib.util
 import io
 import json
 import shutil
@@ -37,6 +38,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "build" / "web" / "dist"
 ISOSPIN = ROOT / "build" / "isospin"
+CLASSES = ROOT / "build" / "classes"
+PLUGINS = ROOT / "build" / "plugins"
 OUT = ROOT / "build" / "package"
 
 NOTICE = """\
@@ -62,9 +65,9 @@ Made by flux-engine scripts/package.py. BUILDINFO gives the source commits.
 - As a whole: AGPL-3.0-or-later (see LICENSE), the same as SuperSonic.
 - The isospin UGens: AGPL-3.0-or-later, with parts under GPL-3.0-or-later and
   LGPL-2.1-or-later; see the NOTICE.md of the isospin release {isospin}.
-- The corresponding source is https://github.com/aeskildsen/flux-engine at
-  commit {commit}, with its submodules and the isospin release that
-  ugens.toml names.
+{third_party}- The corresponding source is https://github.com/aeskildsen/flux-engine at
+  commit {commit}, with its submodules (and the patches in patches/ that
+  the build applies to them) and the isospin release that ugens.toml names.
 """
 
 
@@ -81,6 +84,14 @@ def read_env(path: Path) -> dict[str, str]:
             key, _, value = line.partition("=")
             values[key.strip()] = value.strip()
     return values
+
+
+def load_prepare():
+    """scripts/prepare.py as a module, for its manifest reader."""
+    spec = importlib.util.spec_from_file_location("prepare", ROOT / "scripts" / "prepare.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def pack(src: Path, tarball: Path, top: str) -> None:
@@ -115,13 +126,17 @@ def main() -> None:
     wasm = DIST / "wasm" / "scsynth-nrt.wasm"
     if not wasm.is_file():
         sys.exit(f"package: no {wasm} (run scripts/build-web.sh)")
-    sources = list((ISOSPIN / "src").glob("*.cpp"))
+    # The hook input changes when a UGen is added, removed or changed.
+    sources = [*(ISOSPIN / "src").glob("*.cpp"), *PLUGINS.glob("extra-plugins.*")]
     if any(p.stat().st_mtime > wasm.stat().st_mtime for p in sources):
         sys.exit("package: the UGen sources are newer than the web build (run scripts/build-web.sh)")
-    classes = sorted((ISOSPIN / "classes").glob("*.sc"))
-    if not classes:
-        sys.exit(f"package: no class files in {ISOSPIN / 'classes'} "
+    classes = sorted(CLASSES.glob("*.sc"))
+    if not (ISOSPIN / "classes").is_dir():
+        sys.exit(f"package: no {ISOSPIN / 'classes'} "
                  "(the isospin release or working copy has no classes/ folder)")
+    if not classes:
+        sys.exit(f"package: no class files in {CLASSES} (run scripts/prepare.py)")
+    third_party = load_prepare().load_manifest(ROOT / "ugens.toml").get("sources", [])
 
     version = read_env(ROOT / "engine-version.env")["FLUX_ENGINE_VERSION"]
     supersonic = json.loads((ROOT / "supersonic" / "package.json").read_text())["version"]
@@ -152,11 +167,18 @@ def main() -> None:
         f"version={version}\n"
         f"commit={commit}\n"
         f"supersonic={supersonic} {git('rev-parse', 'HEAD', cwd=ROOT / 'supersonic')}\n"
-        f"isospin={isospin.get('version')} {isospin.get('kind')} {isospin.get('commit')}\n")
+        f"isospin={isospin.get('version')} {isospin.get('kind')} {isospin.get('commit')}\n"
+        + "".join(f"sources={e['name']} {e['root']} {git('rev-parse', 'HEAD', cwd=ROOT / e['root'])}\n"
+                  for e in third_party))
     shutil.copyfile(ROOT / "LICENSE", folder / "LICENSE")
     ugens = "\n".join(f"- `{p.stem}`" for p in classes)
+    third_party_notice = "".join(
+        f"- `{e['name']}` (from the `{e['root']}` submodule at "
+        f"{git('rev-parse', '--short', 'HEAD', cwd=ROOT / e['root'])}): {e.get('notice', 'see its source')}\n"
+        for e in third_party)
     (folder / "NOTICE.md").write_text(NOTICE.format(
-        version=version, ugens=ugens, isospin=isospin.get("version"), commit=commit))
+        version=version, ugens=ugens, isospin=isospin.get("version"), commit=commit,
+        third_party=third_party_notice))
     manifest = {
         "name": "flux-engine",
         "version": version,

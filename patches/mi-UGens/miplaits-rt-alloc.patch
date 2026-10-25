@@ -1,0 +1,71 @@
+MiPlaits: take the voice from the real-time pool.
+
+The constructor runs on the audio thread. It allocated the Plaits voice with
+new, which uses the heap; SuperSonic does not allow heap allocation on the
+audio thread. The voice now comes from RTAlloc and is built with placement
+new; the destructor calls its destructor and frees it with RTFree. A failed
+allocation clears the unit (ClearUnitIfMemFailed) instead of the old code,
+which wrote zeros into a NULL buffer.
+
+diff --git i/projects/MiPlaits/MiPlaits.cpp w/projects/MiPlaits/MiPlaits.cpp
+index 55c6d7c..adc8944 100644
+--- i/projects/MiPlaits/MiPlaits.cpp
++++ w/projects/MiPlaits/MiPlaits.cpp
+@@ -29,6 +29,8 @@
+ 
+ #include "SC_PlugIn.h"
+ 
++#include <new>
++
+ #include "plaits/dsp/dsp.h"
+ #include "plaits/dsp/voice.h"
+ 
+@@ -65,6 +67,9 @@ static void MiPlaits_next(MiPlaits *unit, int inNumSamples);
+ 
+ 
+ static void MiPlaits_Ctor(MiPlaits *unit) {
++    // The destructor runs also when the constructor stops early.
++    unit->voice_ = nullptr;
++    unit->shared_buffer = nullptr;
+     
+     if (BUFLENGTH < kBlockSize) {
+         Print("MiPlaits ERROR: block size can't be smaller than %d samples!\n", kBlockSize);
+@@ -90,17 +95,20 @@ static void MiPlaits_Ctor(MiPlaits *unit) {
+         
+     
+     // allocate memory
++    // All memory comes from the real-time pool: the constructor runs on the
++    // audio thread, where the heap (new, malloc) must not be used.
+     unit->shared_buffer = (char*)RTAlloc(unit->mWorld, 32768);
++    void *voice_memory = RTAlloc(unit->mWorld, sizeof(plaits::Voice));
++    if (!unit->shared_buffer && voice_memory) {
++        // The destructor frees only a constructed voice.
++        RTFree(unit->mWorld, voice_memory);
++    }
++    ClearUnitIfMemFailed(unit->shared_buffer && voice_memory);
+     // init with zeros
+     memset(unit->shared_buffer, 0, 32768);
+-
+-    if(unit->shared_buffer == NULL) {
+-        Print("MiPlaits ERROR: mem alloc failed!");
+-        unit = NULL;
+-    }
+     stmlib::BufferAllocator allocator(unit->shared_buffer, 32768);
+ 
+-    unit->voice_ = new plaits::Voice;
++    unit->voice_ = new (voice_memory) plaits::Voice;
+     unit->voice_->Init(&allocator);
+     
+     
+@@ -125,7 +133,10 @@ static void MiPlaits_Ctor(MiPlaits *unit) {
+ 
+ static void MiPlaits_Dtor(MiPlaits *unit) {
+     
+-    delete unit->voice_;
++    if (unit->voice_) {
++        unit->voice_->~Voice();
++        RTFree(unit->mWorld, unit->voice_);
++    }
+     if(unit->shared_buffer) {
+         RTFree(unit->mWorld, unit->shared_buffer);
+     }

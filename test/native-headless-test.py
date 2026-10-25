@@ -23,6 +23,16 @@ def msg(addr, *args):
 
 
 exe, sd, out = sys.argv[1:4]
+
+# The server uses UDP port 57110. Another server on that port (for example a
+# running SuperCollider session) would answer instead of SuperSonic.
+probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    probe.bind(("127.0.0.1", 57110))
+except OSError:
+    sys.exit("FAIL: UDP port 57110 is in use (stop the other server, for example scsynth)")
+finally:
+    probe.close()
 p = subprocess.Popen([exe, "--headless"], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 time.sleep(3)
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(1)

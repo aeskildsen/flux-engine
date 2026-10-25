@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Prepare the SuperSonic submodule for a build with the flux-engine UGens.
 
-1. Apply the patches in patches/ to the submodule (once; a second run finds
-   them applied and does nothing).
+1. Apply the patches in patches/ to the SuperSonic submodule, and the
+   patches of each [[sources]] entry to its submodule (once; a second run
+   finds them applied and does nothing).
 2. Put the UGen sources that ugens.toml names into build/.
 3. Generate the input of the SuperSonic hook from ugens.toml:
    build/plugins/extra-plugins.cmake (SCSYNTH_EXTRA_PLUGINS points to it) and
    build/plugins/extra-plugins.h. The script writes a file only when its
    content changed, so that an unchanged build compiles nothing again.
+4. Copy the class files of all UGens into build/classes.
+
+[[sources]]: third-party UGens from source files in a pinned submodule. The
+globs in "sources" are expanded here, so the generated source list is
+explicit. A source file that two entries name is built once.
 
 isospin: the UGen sources come from the isospin release that ugens.toml pins.
 The tarball is downloaded once into build/downloads, checked against its
@@ -42,6 +48,11 @@ BUILD = ROOT / "build"
 PLUGINS = BUILD / "plugins"
 
 ISOSPIN_KEYS = {"version", "sha256"}
+# The keys of a [[sources]] entry, with their types. The first four are
+# required.
+SOURCES_REQUIRED = {"name": str, "root": str, "sources": list, "load": str}
+SOURCES_OPTIONAL = {"patches": list, "include_dirs": list, "defines": list,
+                    "classes": list, "linkage": str, "notice": str}
 ISOSPIN_URL = ("https://github.com/aeskildsen/isospin/releases/download/"
                "v{version}/isospin-sc-static-{version}.tar.gz")
 
@@ -89,8 +100,16 @@ def load_manifest(path: Path) -> dict:
     with open(path, "rb") as f:
         manifest = tomllib.load(f)
     for kind in manifest:
-        if kind != "isospin":
+        if kind not in ("isospin", "sources"):
             raise PrepareError(f"{path.name}: unknown entry '{kind}'")
+    if not isinstance(manifest.get("sources", []), list):
+        raise PrepareError(f"{path.name}: sources must be a list of tables ([[sources]])")
+    names = set()
+    for entry in manifest.get("sources", []):
+        check_sources_entry(path.name, entry)
+        if entry["name"] in names:
+            raise PrepareError(f"{path.name}: two sources entries are named {entry['name']}")
+        names.add(entry["name"])
     if "isospin" in manifest:
         entry = manifest["isospin"]
         for key in sorted(ISOSPIN_KEYS - entry.keys()):
@@ -103,19 +122,115 @@ def load_manifest(path: Path) -> dict:
     return manifest
 
 
+def check_sources_entry(where: str, entry: dict) -> None:
+    name = entry.get("name", "?")
+    for key, kind in SOURCES_REQUIRED.items():
+        if key not in entry:
+            raise PrepareError(f"{where}: sources.{key} is missing (entry {name})")
+    known = SOURCES_REQUIRED | SOURCES_OPTIONAL
+    for key, value in entry.items():
+        if key not in known:
+            raise PrepareError(f"{where}: sources.{key} is not a known key (entry {name})")
+        if not isinstance(value, known[key]):
+            raise PrepareError(f"{where}: sources.{key} must be a {known[key].__name__} "
+                               f"(entry {name})")
+        if isinstance(value, list) and not all(isinstance(v, str) for v in value):
+            raise PrepareError(f"{where}: sources.{key} must be a list of strings (entry {name})")
+    if not re.fullmatch(r"[A-Za-z_]\w*", entry["load"]):
+        raise PrepareError(f"{where}: sources.load must be a C function name (entry {name})")
+    if entry.get("linkage", "c++") not in ("c", "c++"):
+        raise PrepareError(f"{where}: sources.linkage must be \"c\" or \"c++\" (entry {name})")
+
+
+def resolve_sources(manifest: dict, root: Path) -> dict:
+    """Gives a copy of the manifest in which each [[sources]] entry has
+    "files": the source files that its globs match, relative to its root
+    folder, sorted. A glob that matches no file stops the script."""
+    resolved = dict(manifest)
+    entries = []
+    for entry in manifest.get("sources", []):
+        base = root / entry["root"]
+        files = set()
+        for pattern in entry["sources"]:
+            matches = [p for p in base.glob(pattern) if p.is_file()]
+            if not matches:
+                raise PrepareError(f"ugens.toml: {entry['name']}: no file matches "
+                                   f"{entry['root']}/{pattern} (is the submodule there?)")
+            files.update(p.relative_to(base).as_posix() for p in matches)
+        entries.append({**entry, "files": sorted(files)})
+    if entries:
+        resolved["sources"] = entries
+    return resolved
+
+
+def _cmake_name(name: str) -> str:
+    return "FLUX_ENGINE_" + re.sub(r"\W", "_", name).upper() + "_SOURCES"
+
+
+def _cmake_sources(entry: dict, files: list[str]) -> str:
+    """The CMake text of one [[sources]] entry. The paths are relative to
+    build/plugins."""
+    def path(rel: str) -> str:
+        return f'"${{CMAKE_CURRENT_LIST_DIR}}/../../{entry["root"]}/{rel}"'
+    var = _cmake_name(entry["name"])
+    lines = [f"\n# {entry['name']} (from {entry['root']}).\n",
+             f"set({var}\n",
+             *(f"    {path(f)}\n" for f in files[:-1]),
+             f"    {path(files[-1])})\n",
+             f"list(APPEND SCSYNTH_PLUGIN_SOURCES ${{{var}}})\n"]
+    props = []
+    if entry.get("include_dirs"):
+        dirs = ";".join(f"${{CMAKE_CURRENT_LIST_DIR}}/../../{entry['root']}/{d}"
+                        for d in entry["include_dirs"])
+        props.append(f'    INCLUDE_DIRECTORIES "{dirs}"')
+    if entry.get("defines"):
+        props.append(f'    COMPILE_DEFINITIONS "{";".join(entry["defines"])}"')
+    if props:
+        lines.append(f"set_source_files_properties(${{{var}}} PROPERTIES\n")
+        lines.append("\n".join(props) + ")\n")
+    return "".join(lines)
+
+
 def render_plugins(manifest: dict) -> tuple[str, str]:
-    """Gives the text of extra-plugins.cmake and extra-plugins.h."""
+    """Gives the text of extra-plugins.cmake and extra-plugins.h. The
+    [[sources]] entries must be resolved (resolve_sources)."""
     cmake = [CMAKE_HEAD]
     includes = []
+    declarations = []
     calls = []
     if "isospin" in manifest:
         cmake.append(CMAKE_ISOSPIN)
         includes.append('#include "isospin_sc_static.h"\n')
         calls.append("    Isospin_Load(table);\n")
+    # A file that an earlier entry builds is not built again; it must then
+    # have the same build settings.
+    built: dict[str, tuple[str, tuple, tuple]] = {}
+    for entry in manifest.get("sources", []):
+        settings = (tuple(entry.get("include_dirs", [])), tuple(entry.get("defines", [])))
+        files = []
+        for rel in entry["files"]:
+            key = f"{entry['root']}/{rel}"
+            if key in built:
+                if built[key][1:] != settings:
+                    raise PrepareError(f"ugens.toml: {key} is in {built[key][0]} and in "
+                                       f"{entry['name']} with other include_dirs or defines")
+                continue
+            built[key] = (entry["name"], *settings)
+            files.append(rel)
+        if files:
+            cmake.append(_cmake_sources(entry, files))
+        linkage = 'extern "C" ' if entry.get("linkage", "c++") == "c" else ""
+        declarations.append(f"// {entry['name']} (from {entry['root']}).\n"
+                            f"{linkage}void {entry['load']}(InterfaceTable* table);\n")
+        calls.append(f"    {entry['load']}(table);\n")
     cmake.append(CMAKE_TAIL)
     header = [HEADER_HEAD]
     if includes:
         header += ["\n", *includes]
+    if declarations:
+        header += ["\nstruct InterfaceTable;\n"]
+        for d in declarations:
+            header += ["\n", d]
     header += ["\nstatic inline void SC_ExtraPlugins_Load(InterfaceTable* table) {\n",
                *calls, "}\n"]
     return "".join(cmake), "".join(header)
@@ -158,17 +273,49 @@ def read_env(path: Path, environ: dict[str, str]) -> dict[str, str]:
     return values
 
 
-def apply_patches(supersonic: Path, patches: Path) -> None:
-    for patch in sorted(patches.glob("*.patch")):
-        check = subprocess.run(["git", "-C", str(supersonic), "apply", "--reverse",
+def apply_patches(target: Path, patches: list[Path]) -> None:
+    """Applies the patches to the git working tree target, each once."""
+    if patches and not (target / ".git").exists():
+        raise PrepareError(f"{target} is not checked out "
+                           "(run git submodule update --init --recursive)")
+    for patch in patches:
+        check = subprocess.run(["git", "-C", str(target), "apply", "--reverse",
                                 "--check", str(patch)], capture_output=True)
         if check.returncode == 0:
             print(f"prepare: already applied: {patch.name}")
             continue
-        applied = subprocess.run(["git", "-C", str(supersonic), "apply", str(patch)])
+        applied = subprocess.run(["git", "-C", str(target), "apply", str(patch)])
         if applied.returncode != 0:
-            raise PrepareError(f"{patch.name} does not apply to {supersonic}")
+            raise PrepareError(f"{patch.name} does not apply to {target}")
         print(f"prepare: applied: {patch.name}")
+
+
+def class_files(manifest: dict, root: Path, isospin: Path) -> list[Path]:
+    """The class files of all UGens: those of the isospin build, then those
+    that the [[sources]] entries name."""
+    files = sorted((isospin / "classes").glob("*.sc")) if "isospin" in manifest else []
+    for entry in manifest.get("sources", []):
+        for rel in entry.get("classes", []):
+            path = root / entry["root"] / rel
+            if not path.is_file():
+                raise PrepareError(f"ugens.toml: {entry['name']}: no class file "
+                                   f"{entry['root']}/{rel}")
+            files.append(path)
+    return files
+
+
+def sync_classes(files: list[Path], dest: Path) -> None:
+    """Makes dest hold exactly the given class files. Leaves unchanged files
+    untouched."""
+    names = [p.name for p in files]
+    for name in sorted({n for n in names if names.count(n) > 1}):
+        raise PrepareError(f"two class files are named {name}")
+    dest.mkdir(parents=True, exist_ok=True)
+    for path in files:
+        write_if_changed(dest / path.name, path.read_text())
+    for old in dest.iterdir():
+        if old.name not in names:
+            old.unlink()
 
 
 def sha256_of(path: Path) -> str:
@@ -238,15 +385,19 @@ def main() -> None:
     env ={**read_env(ROOT / "local.env", dict(os.environ)), **os.environ}
     try:
         manifest = load_manifest(ROOT / "ugens.toml")
-        apply_patches(ROOT / "supersonic", ROOT / "patches")
+        apply_patches(ROOT / "supersonic", sorted((ROOT / "patches").glob("*.patch")))
+        for entry in manifest.get("sources", []):
+            apply_patches(ROOT / entry["root"], [ROOT / p for p in entry.get("patches", [])])
         if "isospin" in manifest:
             message = prepare_isospin(manifest["isospin"], BUILD / "isospin",
                                       BUILD / "downloads", env)
             print(f"prepare: {message}", file=sys.stderr if "WARNING" in message else sys.stdout)
+        manifest = resolve_sources(manifest, ROOT)
         cmake, header = render_plugins(manifest)
         for name, text in (("extra-plugins.cmake", cmake), ("extra-plugins.h", header)):
             if write_if_changed(PLUGINS / name, text):
                 print(f"prepare: wrote build/plugins/{name}")
+        sync_classes(class_files(manifest, ROOT, BUILD / "isospin"), BUILD / "classes")
     except PrepareError as e:
         sys.exit(f"prepare: {e}")
 

@@ -10,7 +10,9 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 |---|---|
 | `supersonic/` | SuperSonic, a submodule pinned to a release tag |
 | `patches/supersonic-extra-plugins.patch` | Adds the `SCSYNTH_EXTRA_PLUGINS` hook to SuperSonic's engine build |
-| `ugens.toml` | The manifest: the UGens that the hook adds (today the isospin release, its version and SHA-256) |
+| `mi-UGens/` | [mi-UGens](https://github.com/v7b1/mi-UGens), a submodule pinned to a commit; the engine builds `MiPlaits` from it |
+| `patches/mi-UGens/` | Patches that the build applies to `mi-UGens` |
+| `ugens.toml` | The manifest: the UGens that the hook adds (the isospin release with its version and SHA-256, and third-party UGens from submodules) |
 | `scripts/prepare.py` | Applies the patches, puts the UGen sources into `build/` and generates the hook input from `ugens.toml` (`build/plugins/extra-plugins.cmake` and `.h`: sources, build settings and load calls) |
 | `scripts/build-native.sh` | Builds the native server into `build/native` |
 | `scripts/build-web.sh` | Builds the web engine (wasm, client, workers) into `build/web/dist` |
@@ -23,10 +25,15 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | UGen | Source |
 |---|---|
 | `PhysWoodbar` | `woodbar.dsp` in [isospin](https://github.com/aeskildsen/isospin) |
+| `MiPlaits` | [mi-UGens](https://github.com/v7b1/mi-UGens) (Mutable Instruments Plaits), with `patches/mi-UGens/miplaits-rt-alloc.patch`. Its first input is a MIDI note, not Hz. |
 
 ## Add a UGen
 
 Add an entry to `ugens.toml`. `scripts/prepare.py` generates the CMake source list, the declarations and the `<Name>_Load` calls from it; do not write UGen names into SuperSonic's files. A new isospin UGen needs no change here: release isospin and change the version and SHA-256 of the `[isospin]` entry.
+
+A third-party UGen is a `[[sources]]` entry: a submodule (`root`), its source files (globs, relative to `root`), include folders, compile definitions, the load function (`load`; C++ linkage unless `linkage = "c"`), class files, patches and a licence `notice` for the package. `ugens.toml` has the `MiPlaits` entry as an example. A source file that two entries name is built once; it must then have the same build settings in both. Which UGens come in follows the UGen selection rule of the project wiki: one at a time, for what Flux needs; a UGen that needs a patch only on purpose.
+
+The engine runs the constructors of the UGens on the audio thread. A UGen must not use the heap there (`new`, `malloc`); it must use `RTAlloc`. Each Plaits node takes about 43 KB of the real-time pool (8 MB by default).
 
 The tests of `prepare.py` need no build, no network and no Faust:
 
@@ -74,7 +81,7 @@ npx playwright install chromium
 npx playwright test -c test/web
 ```
 
-The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) in two modes:
+The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`) in two modes:
 
 - **SAB**: the page is cross-origin isolated (COOP and COEP headers) and SuperSonic uses shared memory.
 - **postMessage**: the page has no such headers, the same as GitHub Pages, and SuperSonic uses postMessage.
@@ -93,7 +100,7 @@ The build folders of the image and of a host build are not compatible; use `--cl
 
 **Reproducible output.** The web build and the package give the same bytes from the same commit, in the toolchain image and on a host with the same toolchain versions, from any checkout path. `scripts/build-web.sh` keeps the build paths out of the output: cargo's `trim-paths` for Rust, and `-ffile-prefix-map` for C and C++ (the paths become `/flux-engine/…`, `/emsdk/…` and `/rustc/<commit>/…`). CMake reads these flags only when it configures a new build folder, so `build-web.sh` stops when the build folder was configured without them; run it once with `--clean`. The native build does not remove the paths.
 
-**Size of the engine:** `scsynth-nrt.wasm` is 1,627,500 bytes (1.6 MB; Release build, isospin 0.2.0, SuperSonic 0.91.0, 2026-10-24).
+**Size of the engine:** `scsynth-nrt.wasm` is 1,835,785 bytes (1.8 MB; Release build, isospin 0.2.0, MiPlaits, SuperSonic 0.91.0, 2026-10-25). Without MiPlaits it was 1,627,500 bytes.
 
 ## Engine package
 
@@ -109,7 +116,7 @@ The result is in `build/package`:
 | Path | What it is |
 |---|---|
 | `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/scsynth-nrt.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
-| `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release), for the sclang class path |
+| `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release and the `[[sources]]` entries; `prepare.py` collects them in `build/classes`), for the sclang class path |
 | `flux-engine-<version>/BUILDINFO`, `LICENSE`, `NOTICE.md` | The kind of build and the source commits, the licence, and where the corresponding source is |
 | `flux-engine-<version>/package.json` | The name and version, so that a package manager (Flux uses pnpm) can install the tarball from its release URL |
 | `flux-engine-<version>.tgz`, `.tgz.sha256` | The same folder as a tarball (the same input gives the same bytes), and its SHA-256 |
@@ -136,4 +143,4 @@ The build then makes the UGen sources from that working copy with isospin's `scr
 
 ## License
 
-AGPL-3.0-or-later, the same as SuperSonic. See `LICENSE`. The isospin UGen sources have their own licence notice (`build/isospin/NOTICE.md`).
+AGPL-3.0-or-later, the same as SuperSonic. See `LICENSE`. The isospin UGen sources have their own licence notice (`build/isospin/NOTICE.md`). The third-party UGens keep their licences (GPL-3.0-or-later and MIT for `mi-UGens`); the `NOTICE.md` of the package lists them.
