@@ -64,7 +64,7 @@ Made by flux-engine scripts/package.py. BUILDINFO gives the source commits.
   LGPL-2.1-or-later; see the NOTICE.md of the isospin release {isospin}.
 - The corresponding source is https://github.com/aeskildsen/flux-engine at
   commit {commit}, with its submodules and the isospin release that
-  isospin-release.env names.
+  ugens.toml names.
 """
 
 

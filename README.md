@@ -10,14 +10,13 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 |---|---|
 | `supersonic/` | SuperSonic, a submodule pinned to a release tag |
 | `patches/supersonic-extra-plugins.patch` | Adds the `SCSYNTH_EXTRA_PLUGINS` hook to SuperSonic's engine build |
-| `plugins/extra-plugins.cmake`, `plugins/extra-plugins.h` | The UGens that the hook adds: sources, build settings and load calls |
-| `isospin-release.env` | The isospin release (version and SHA-256) that the UGen sources come from |
-| `scripts/prepare.sh` | Applies the patches and puts the isospin UGen sources into `build/isospin` |
+| `ugens.toml` | The manifest: the UGens that the hook adds (today the isospin release, its version and SHA-256) |
+| `scripts/prepare.py` | Applies the patches, puts the UGen sources into `build/` and generates the hook input from `ugens.toml` (`build/plugins/extra-plugins.cmake` and `.h`: sources, build settings and load calls) |
 | `scripts/build-native.sh` | Builds the native server into `build/native` |
 | `scripts/build-web.sh` | Builds the web engine (wasm, client, workers) into `build/web/dist` |
 | `scripts/package.py`, `engine-version.env` | Makes the engine package for Flux from the web build, and its version |
 | `Containerfile`, `scripts/in-image.sh` | The toolchain image, and a command to run the scripts in it |
-| `test/` | Tests of the built engine (`test/web`: the web engine in Chromium) |
+| `test/` | Tests of `prepare.py` (`test/test_prepare.py`) and of the built engine (`test/web`: the web engine in Chromium) |
 
 ## UGens
 
@@ -25,9 +24,19 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 |---|---|
 | `PhysWoodbar` | `woodbar.dsp` in [isospin](https://github.com/aeskildsen/isospin) |
 
+## Add a UGen
+
+Add an entry to `ugens.toml`. `scripts/prepare.py` generates the CMake source list, the declarations and the `<Name>_Load` calls from it; do not write UGen names into SuperSonic's files. A new isospin UGen needs no change here: release isospin and change the version and SHA-256 of the `[isospin]` entry.
+
+The tests of `prepare.py` need no build, no network and no Faust:
+
+```sh
+python3 -m unittest discover -s test -p 'test_*.py'
+```
+
 ## Build and test (native)
 
-The toolchain is SuperSonic's (CMake, a C++ compiler, Rust, the audio development libraries) plus `curl`. The first build downloads the isospin release into `build/downloads` and checks its SHA-256.
+The toolchain is SuperSonic's (CMake, a C++ compiler, Rust, the audio development libraries) plus Python 3.11 or later. The first build downloads the isospin release into `build/downloads` and checks its SHA-256.
 
 ```sh
 git submodule update --init --recursive
@@ -112,11 +121,11 @@ FLUX_ENGINE_DIR=~/gp/audio/flux-engine/build/package/latest pnpm dev
 Set `ISOSPIN_DIR` to an isospin working copy, in the environment or in `local.env` (not in git):
 
 ```sh
-echo 'ISOSPIN_DIR=$HOME/gp/audio/isospin' > local.env
+echo 'ISOSPIN_DIR=$HOME/gp/audio/isospin' > local.env  # the environment has priority
 scripts/build-native.sh
 ```
 
-The build then makes the UGen sources from that working copy with isospin's `scripts/build-sc-static.py`, and compiles only the UGens that changed. This needs Faust and Python 3.11 or later. The build is a development build: the scripts print a warning, and `build/isospin/BUILDINFO` has `kind=development`. Do not release it. To ship a change, release isospin and change `isospin-release.env`.
+The build then makes the UGen sources from that working copy with isospin's `scripts/build-sc-static.py`, and compiles only the UGens that changed. This needs Faust and Python 3.11 or later. The build is a development build: the scripts print a warning, and `build/isospin/BUILDINFO` has `kind=development`. Do not release it. To ship a change, release isospin and change the `[isospin]` entry in `ugens.toml`.
 
 ## License
 

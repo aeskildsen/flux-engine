@@ -13,8 +13,9 @@ FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Native build: the C++ toolchain, CMake (SuperSonic needs 3.24 or later) and
-# the audio development libraries. git applies the patches, curl downloads
-# the isospin release. python3 and xz-utils are for emsdk.
+# the audio development libraries. git applies the patches. python3 runs
+# scripts/prepare.py (it downloads the isospin release) and emsdk; xz-utils is
+# for emsdk. curl installs Rust.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake ninja-build pkg-config \
       libasound2-dev libudev-dev libjack-jackd2-dev libpipewire-0.3-dev \

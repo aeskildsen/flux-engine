@@ -36,7 +36,7 @@ if ! command -v emcc > /dev/null; then
 	EMSDK_QUIET=1 . "$emsdk/emsdk_env.sh"
 fi
 
-"$root/scripts/prepare.sh"
+python3 -I "$root/scripts/prepare.py"
 
 # Reproducible output: the build must not write the paths of this checkout or
 # of the toolchain into the wasm, so that the same sources give the same bytes
@@ -76,7 +76,7 @@ fi
 # esbuild writes the source paths into the bundles relative to the working
 # folder, so the build always runs from the repository root.
 cd "$root"
-SCSYNTH_EXTRA_PLUGINS="$root/plugins/extra-plugins.cmake" \
+SCSYNTH_EXTRA_PLUGINS="$root/build/plugins/extra-plugins.cmake" \
 	"$supersonic/scripts/build-web.sh" "${args[@]}"
 
 rm -rf "$out/dist"

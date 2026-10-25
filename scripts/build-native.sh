@@ -26,12 +26,12 @@ done
 unset LD_LIBRARY_PATH
 [ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
 
-"$root/scripts/prepare.sh"
+python3 -I "$root/scripts/prepare.py"
 
 cmake -B "$build" -G Ninja \
 	-DCMAKE_BUILD_TYPE="$build_type" \
 	-DBUILD_TESTS=OFF \
-	-DSCSYNTH_EXTRA_PLUGINS="$root/plugins/extra-plugins.cmake" \
+	-DSCSYNTH_EXTRA_PLUGINS="$root/build/plugins/extra-plugins.cmake" \
 	"$root/supersonic"
 cmake --build "$build" --config "$build_type"
 

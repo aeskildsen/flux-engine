@@ -1,0 +1,16 @@
+# The UGens that flux-engine adds to SuperSonic's engine. scripts/prepare.py
+# reads this file. It gets the UGen sources into build/ and generates the
+# input of the SuperSonic hook (build/plugins/extra-plugins.cmake and
+# extra-plugins.h): the source list, the build settings and the load calls.
+# Do not write UGen names into SuperSonic's CMake files or SC_Lib_Cintf.cpp.
+
+# The static UGens of isospin (https://github.com/aeskildsen/isospin). The
+# release tarball has the UGen sources and class files, a CMake file with
+# the source list and one load function for all its UGens, so a new isospin
+# UGen needs no change here. prepare.py downloads the tarball once into
+# build/downloads and checks it against sha256. To change the release,
+# change both values together. ISOSPIN_DIR replaces the release with a
+# working copy (a development build; see README.md).
+[isospin]
+version = "0.2.0"
+sha256 = "05ebad33e380fa9aab6262cb52f0427a7d3184344b82b24f1b3d681b59b70075"
