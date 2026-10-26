@@ -4,9 +4,9 @@
 # release, to try a commit before it is tagged.
 #
 # The steps are in scripts/ci.sh and run in the toolchain image (Containerfile),
-# the same as a local run of scripts/in-image.sh scripts/ci.sh. The workflow
-# builds the image; the GitHub Actions cache keeps its layers. The image is not
-# published.
+# the same as a local run of scripts/in-image.sh scripts/ci.sh. The local action
+# .github/actions/build-and-test builds the image (the GitHub Actions cache keeps
+# its layers; the image is not published) and runs scripts/ci.sh.
 name: Release
 
 on:
@@ -17,9 +17,8 @@ on:
 permissions:
   contents: write
 
-# With "shell: bash" the steps run with -o pipefail, so a failed scripts/ci.sh
-# fails its step also when its output goes through tee. With no shell key,
-# GitHub runs bash -e only.
+# With "shell: bash" the steps run with -o pipefail. With no shell key, GitHub
+# runs bash -e only.
 defaults:
   run:
     shell: bash
@@ -29,49 +28,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      # The image is about 6.4 GB, and docker keeps it twice while it loads it.
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
-          df -h /
-
       - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: docker/setup-buildx-action@v4
-
-      # The image copies no files, so the build context is an empty folder.
-      - name: Make an empty build context
-        run: mkdir -p "$RUNNER_TEMP/empty"
-
-      - name: Build the toolchain image
-        uses: docker/build-push-action@v7
+      - uses: ./.github/actions/build-and-test
         with:
-          context: ${{ runner.temp }}/empty
-          file: Containerfile
-          tags: flux-engine-toolchain
-          load: true
-          cache-from: type=gha,scope=toolchain
-          cache-to: type=gha,scope=toolchain,mode=max
-
-      # The container runs as root, and the checkout belongs to the runner
-      # user; git refuses such a repository unless it is a safe directory.
-      - name: Build and test
-        run: |
-          args=()
-          if [ "$GITHUB_REF_TYPE" = tag ]; then args=(--release "$GITHUB_REF_NAME"); fi
-          docker run --rm \
-            --volume "$PWD:$PWD" --workdir "$PWD" \
-            --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0='*' \
-            flux-engine-toolchain scripts/ci.sh "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/test-log.txt"
-
-      - name: Keep the test log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-log
-          path: ${{ runner.temp }}/test-log.txt
+          release-tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
 
       - name: Create the release
         if: github.ref_type == 'tag'

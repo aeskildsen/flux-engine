@@ -1,0 +1,145 @@
+# Looks once a day for a new release of SuperSonic and of isospin. For each new
+# release, it makes the bump (scripts/track.py), builds and tests it the same
+# as a release (.github/actions/build-and-test), and then:
+#  - opens a pull request with the bump when the build and the tests pass;
+#  - opens an issue with the end of the test log when they fail.
+# The workflow never merges. Merge the pull request and tag the new engine
+# version to release it.
+#
+# A release that already has a pull request or an issue with the same title
+# (open or closed) is left out. Thus each release gets one proposal, and a
+# closed one stays closed.
+#
+# A manual run can take a given SuperSonic tag instead of the newest, to test
+# the workflow (for example with a tag that breaks the hook patch).
+#
+# The repository must allow GitHub Actions to create pull requests (Settings,
+# Actions, General, Workflow permissions).
+name: Track
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      supersonic-tag:
+        description: A SuperSonic tag to take instead of the newest (for example v0.92.0)
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# With "shell: bash" the steps run with -o pipefail. With no shell key, GitHub
+# runs bash -e only.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  track:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [supersonic, isospin]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Look for a new release
+        id: find
+        env:
+          TARGET: ${{ matrix.target }}
+          TAG: ${{ matrix.target == 'supersonic' && inputs.supersonic-tag || '' }}
+        run: |
+          args=("$TARGET" --body "$RUNNER_TEMP/body.md")
+          if [ -n "$TAG" ]; then args+=(--tag "$TAG"); fi
+          python3 -I scripts/track.py "${args[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Leave out a release that has a pull request or an issue
+        id: new
+        if: steps.find.outputs.found == 'true'
+        env:
+          BRANCH: ${{ steps.find.outputs.branch }}
+          PR_TITLE: ${{ steps.find.outputs.pr-title }}
+          ISSUE_TITLE: ${{ steps.find.outputs.issue-title }}
+        run: |
+          prs=$(gh pr list --state all --head "$BRANCH" --json number --jq length)
+          # The search finds titles that contain the words; keep exact titles only.
+          issues=$(gh issue list --state all --search "\"$ISSUE_TITLE\" in:title" --json title \
+            | jq --arg t "$ISSUE_TITLE" '[.[] | select(.title == $t)] | length')
+          if [ "$prs" -gt 0 ] || [ "$issues" -gt 0 ]; then
+            echo "A pull request or an issue for this release exists: $PR_TITLE"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Commit before the build, so that the package is not a development
+      # build (a working tree with changes).
+      - name: Commit the bump
+        if: steps.new.outputs.new == 'true'
+        env:
+          BRANCH: ${{ steps.find.outputs.branch }}
+          PR_TITLE: ${{ steps.find.outputs.pr-title }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          git commit --all --message "$PR_TITLE"
+          git show --stat HEAD
+
+      - name: Build and test
+        id: test
+        if: steps.new.outputs.new == 'true'
+        continue-on-error: true
+        uses: ./.github/actions/build-and-test
+        with:
+          log-name: test-log-${{ matrix.target }}
+
+      - name: Open a pull request
+        if: steps.new.outputs.new == 'true' && steps.test.outcome == 'success'
+        env:
+          BRANCH: ${{ steps.find.outputs.branch }}
+          PR_TITLE: ${{ steps.find.outputs.pr-title }}
+          VERSION: ${{ steps.find.outputs.version }}
+        run: |
+          git push origin "$BRANCH"
+          {
+            cat "$RUNNER_TEMP/body.md"
+            echo
+            echo "The build and all tests passed in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID (the test log is an artefact of the run)."
+            echo
+            echo "To release: merge, then push the tag \`v$VERSION\`."
+          } > "$RUNNER_TEMP/pr.md"
+          gh pr create --base main --head "$BRANCH" --title "$PR_TITLE" --body-file "$RUNNER_TEMP/pr.md"
+
+      - name: Open an issue
+        if: steps.new.outputs.new == 'true' && steps.test.outcome == 'failure'
+        env:
+          ISSUE_TITLE: ${{ steps.find.outputs.issue-title }}
+        run: |
+          {
+            cat "$RUNNER_TEMP/body.md"
+            echo
+            echo "The build or the tests failed in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. The end of the test log:"
+            echo
+            echo '```'
+            tail -n 60 "$RUNNER_TEMP/test-log.txt" 2> /dev/null || echo "(no test log: the image build failed)"
+            echo '```'
+            echo
+            echo "Close this issue to leave this release out; the workflow does not open it again."
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/issue.md"
+
+      # The run shows as failed when the bump does not build or pass the tests.
+      - name: Fail when the tests failed
+        if: steps.new.outputs.new == 'true' && steps.test.outcome == 'failure'
+        run: exit 1

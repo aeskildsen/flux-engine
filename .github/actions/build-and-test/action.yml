@@ -1,0 +1,71 @@
+# Builds the toolchain image (Containerfile) and runs scripts/ci.sh in it: all
+# builds and tests, and the engine package in build/package. The release
+# workflow and the tracking workflow use it. Check out the repository with its
+# submodules first.
+#
+# The GitHub Actions cache keeps the image layers (scope "toolchain"). A run on
+# a tag or a branch can use the caches of its own ref and of main.
+#
+# The test log is in $RUNNER_TEMP/test-log.txt and is kept as an artefact.
+name: Build and test
+description: Build the toolchain image and run scripts/ci.sh in it.
+
+inputs:
+  release-tag:
+    description: With a tag, scripts/ci.sh --release <tag> also checks that the build can be released as that tag.
+    required: false
+    default: ""
+  log-name:
+    description: The name of the artefact with the test log. It must be unique in the run.
+    required: false
+    default: test-log
+
+runs:
+  using: composite
+  steps:
+    # The image is about 6.4 GB, and docker keeps it twice while it loads it.
+    - name: Free disk space
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        df -h /
+
+    - uses: docker/setup-buildx-action@v4
+
+    # The image copies no files, so the build context is an empty folder.
+    - name: Make an empty build context
+      shell: bash
+      run: mkdir -p "$RUNNER_TEMP/empty"
+
+    - name: Build the toolchain image
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ runner.temp }}/empty
+        file: Containerfile
+        tags: flux-engine-toolchain
+        load: true
+        cache-from: type=gha,scope=toolchain
+        cache-to: type=gha,scope=toolchain,mode=max
+
+    # "shell: bash" runs with -o pipefail, so a failed scripts/ci.sh fails the
+    # step also through tee. The container runs as root, and the checkout
+    # belongs to the runner user; git refuses such a repository unless it is a
+    # safe directory.
+    - name: Build and test
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      run: |
+        args=()
+        if [ -n "$RELEASE_TAG" ]; then args=(--release "$RELEASE_TAG"); fi
+        docker run --rm \
+          --volume "$PWD:$PWD" --workdir "$PWD" \
+          --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env GIT_CONFIG_VALUE_0='*' \
+          flux-engine-toolchain scripts/ci.sh "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/test-log.txt"
+
+    - name: Keep the test log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.log-name }}
+        path: ${{ runner.temp }}/test-log.txt

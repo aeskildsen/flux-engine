@@ -20,6 +20,8 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `Containerfile`, `scripts/in-image.sh` | The toolchain image, and a command to run the scripts in it |
 | `test/` | Tests of `prepare.py` (`test/test_prepare.py`) and of the built engine (`test/web`: the web engine in Chromium) |
 | `scripts/ci.sh`, `.github/workflows/release.yml` | All builds and tests and the package in one script; the workflow runs it in the toolchain image and releases the package on a version tag |
+| `.github/actions/build-and-test` | Builds the toolchain image and runs `scripts/ci.sh` in it; the release and the tracking workflow use it |
+| `scripts/track.py`, `.github/workflows/track.yml` | Look once a day for a new SuperSonic or isospin release, test the bump and open a pull request or an issue |
 
 ## UGens
 
@@ -153,6 +155,21 @@ The workflow stops when the tag is not `v` plus the version in `engine-version.e
 scripts/in-image.sh scripts/ci.sh                          # no tag checks
 scripts/in-image.sh scripts/ci.sh --release v0.91.0-flux.3 # with the tag checks
 ```
+
+## New SuperSonic and isospin releases
+
+`.github/workflows/track.yml` runs once a day. For a new release of SuperSonic (a tag `vX.Y.Z`; no pre-releases) or of isospin, `scripts/track.py` makes the bump on a branch `track/<name>-<tag>`:
+
+- SuperSonic: the submodule goes to the new tag, and `engine-version.env` gets `<X.Y.Z>-flux.1`.
+- isospin: the `[isospin]` entry of `ugens.toml` gets the new version and SHA-256, and the `flux.<n>` of `engine-version.env` goes up by one.
+
+The workflow then builds and tests the bump the same as a release. When all passes, it opens a pull request; when not, an issue with the end of the test log. The text says whether the hook patch applies to the new SuperSonic, and shows a change of SuperSonic's toolchain pins (its `Dockerfile`), which the `Containerfile` must follow. The workflow never merges: merge the pull request, then push the tag of the new version to release it.
+
+Each release gets one pull request or issue. The workflow leaves out a release that has one already, also a closed one: close it to skip that release.
+
+A manual run (Actions, Track, "Run workflow") can take a given SuperSonic tag instead of the newest, to try the workflow. The repository must allow GitHub Actions to create pull requests (Settings, Actions, General, "Allow GitHub Actions to create and approve pull requests").
+
+The tests of `track.py` are in `test/test_track.py` (no network and no git).
 
 ## Change a UGen locally
 
