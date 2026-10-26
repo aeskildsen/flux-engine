@@ -2,6 +2,7 @@
 //
 //   /dist/...    the built engine (build/web/dist)
 //   /assets/...  test assets (test/assets)
+//   /battery/... the SynthDefs of the test battery (test/make-battery.sh)
 //   /...         this folder (the harness page)
 //
 // With ISOLATE=1 the server sends the COOP and COEP headers, so the page is
@@ -24,6 +25,7 @@ const isolate = process.env.ISOLATE !== "0";
 const mounts = [
   ["/dist/", path.join(root, "build/web/dist")],
   ["/assets/", path.join(root, "test/assets")],
+  ["/battery/", path.join(root, "build/test/battery")],
   ["/", here],
 ];
 

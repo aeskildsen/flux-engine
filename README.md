@@ -19,6 +19,7 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `scripts/package.py`, `engine-version.env` | Makes the engine package for Flux from the web build, and its version |
 | `Containerfile`, `scripts/in-image.sh` | The toolchain image, and a command to run the scripts in it |
 | `test/` | Tests of `prepare.py` (`test/test_prepare.py`) and of the built engine (`test/web`: the web engine in Chromium) |
+| `scripts/ci.sh`, `.github/workflows/release.yml` | All builds and tests and the package in one script; the workflow runs it in the toolchain image and releases the package on a version tag |
 
 ## UGens
 
@@ -78,10 +79,15 @@ The `Containerfile` is the record of these versions. The scripts run the same in
 scripts/build-web.sh
 npm ci
 npx playwright install chromium
+test/make-battery.sh
 npx playwright test -c test/web
 ```
 
-The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`) in two modes:
+The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`).
+
+The **test battery** (`test/web/battery.spec.mjs`) covers every UGen of the package with no test code of its own. `test/make-battery.sh` (needs sclang, as the native test) writes one SynthDef for each class file in `build/classes`: the UGen with its default inputs. For each UGen the battery checks that the SynthDef loads and plays with no `/fail` and with finite output, and that the engine keeps real time with 16 nodes of it (the CPU budget). The web engine reports no CPU load, so the budget check counts the blocks that the engine processes in 2 s: at least 90 % of `sampleRate / 128` a second. The default inputs need not make a sound (`PhysWoodbar` strikes only on a gate); the specs of each UGen check the sound.
+
+All web tests run in two modes:
 
 - **SAB**: the page is cross-origin isolated (COOP and COEP headers) and SuperSonic uses shared memory.
 - **postMessage**: the page has no such headers, the same as GitHub Pages, and SuperSonic uses postMessage.
@@ -128,6 +134,24 @@ To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the pack
 
 ```sh
 FLUX_ENGINE_DIR=~/gp/audio/flux-engine/build/package/latest pnpm dev
+```
+
+## Release
+
+`.github/workflows/release.yml` makes the releases. It builds the toolchain image from the `Containerfile` (the GitHub Actions cache keeps its layers; the image is not published), runs `scripts/ci.sh` in it, and puts the tarball, its `.sha256` and the test log into a GitHub release. `scripts/ci.sh` does all the steps: the tests of `prepare.py`, the native build and the native reference test, the web build, the web tests with the battery, and the package.
+
+To release:
+
+1. Increase the version in `engine-version.env` and commit.
+2. Run the workflow by hand on `main` (Actions, Release, "Run workflow"). It does all the steps and makes no release. It also fills the image cache for the tag run: a run on a tag can use only the caches of that tag and of `main`, and the cache keeps an entry only for 7 days after its last use. Without this run, the tag run builds the toolchain image from the start.
+3. Push the tag `v<version>`, for example `v0.91.0-flux.3`.
+4. In Flux, change the `flux-engine` URL in `package.json` to the new release and run `pnpm install`, so that `pnpm-lock.yaml` gets the hash of the new tarball. Flux CI then plays each Flux SynthDef in the new engine.
+
+The workflow stops when the tag is not `v` plus the version in `engine-version.env`, when `ISOSPIN_DIR` or `local.env` is set, or when the package is a development build. Run the same steps locally in a clean clone with:
+
+```sh
+scripts/in-image.sh scripts/ci.sh                          # no tag checks
+scripts/in-image.sh scripts/ci.sh --release v0.91.0-flux.3 # with the tag checks
 ```
 
 ## Change a UGen locally
