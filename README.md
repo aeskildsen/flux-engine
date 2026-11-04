@@ -124,6 +124,7 @@ The result is in `build/package`:
 | Path | What it is |
 |---|---|
 | `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/scsynth-nrt.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
+| `flux-engine-<version>/supersonic.d.ts` | The TypeScript declarations of the SuperSonic client API, from the SuperSonic submodule. `package.json` names it in `types`, so that `import type { SuperSonic } from 'flux-engine'` types code against the engine in `dist/` |
 | `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release and the `[[sources]]` entries; `prepare.py` collects them in `build/classes`), for the sclang class path |
 | `flux-engine-<version>/BUILDINFO`, `LICENSE`, `NOTICE.md` | The kind of build and the source commits, the licence, and where the corresponding source is |
 | `flux-engine-<version>/package.json` | The name and version, so that a package manager (Flux uses pnpm) can install the tarball from its release URL |

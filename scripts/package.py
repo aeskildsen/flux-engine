@@ -6,6 +6,8 @@ of that folder:
 
     build/package/flux-engine-<version>/
         dist/        the web engine: client, workers, wasm (build/web/dist)
+        supersonic.d.ts  the TypeScript declarations of the SuperSonic client
+                     API (from the SuperSonic submodule)
         classes/     the SuperCollider class files of the UGens, for sclang
         BUILDINFO    the kind of build, the version and the source commits
         LICENSE      AGPL-3.0-or-later
@@ -159,6 +161,9 @@ def main() -> None:
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
     shutil.copytree(DIST, folder / "dist")
+    # The declarations of the client in dist/, so that Flux can type its code
+    # against the engine that it loads.
+    shutil.copyfile(ROOT / "supersonic" / "supersonic.d.ts", folder / "supersonic.d.ts")
     (folder / "classes").mkdir()
     for p in classes:
         shutil.copyfile(p, folder / "classes" / p.name)
@@ -186,6 +191,7 @@ def main() -> None:
                        "the web engine in dist/, the SuperCollider class files in classes/",
         "license": "AGPL-3.0-or-later",
         "repository": "github:aeskildsen/flux-engine",
+        "types": "supersonic.d.ts",
         # Not for the npm registry: the package is a GitHub release file.
         "private": True,
     }
