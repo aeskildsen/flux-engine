@@ -71,6 +71,6 @@ if [ -n "$tag" ]; then
 	grep -qx "version=$version" "$package/BUILDINFO" \
 		|| { echo "ci: the package version is not $version" >&2; exit 1; }
 fi
-echo "wasm: $(stat -c %s "$package/dist/wasm/scsynth-nrt.wasm") bytes"
+echo "wasm: $(stat -c %s "$package/dist/wasm/clockwork-scsynth.wasm") bytes"
 
 step "Done"

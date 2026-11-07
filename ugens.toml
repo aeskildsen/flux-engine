@@ -12,20 +12,25 @@
 # change both values together. ISOSPIN_DIR replaces the release with a
 # working copy (a development build; see README.md).
 [isospin]
-version = "0.2.0"
-sha256 = "05ebad33e380fa9aab6262cb52f0427a7d3184344b82b24f1b3d681b59b70075"
+version = "0.3.0"
+sha256 = "e71f88b0c7d212a9a9d17434abc087c3d63c9b953438eee84149955438590363"
 
 # MiPlaits, Volker Böhm's SuperCollider version of Mutable Instruments
 # Plaits, from mi-UGens (https://github.com/v7b1/mi-UGens), a pinned
 # submodule. It builds against the changed eurorack copy in mi-UGens, not
 # upstream eurorack. The source list is the one of mi-UGens'
 # projects/MiPlaits/CMakeLists.txt; plaits/settings.cc (firmware) is not in
-# it. The patch takes the voice from the real-time pool (see the patch file).
+# it. The patches take the voice from the real-time pool, and make the plugin
+# read the engine's functions from the constant interface table (see the patch
+# files).
 # PluginLoad() gives C++ linkage under SuperSonic's STATIC_PLUGINS.
 [[sources]]
 name = "MiPlaits"
 root = "mi-UGens"
-patches = ["patches/mi-UGens/miplaits-rt-alloc.patch"]
+patches = [
+    "patches/mi-UGens/miplaits-rt-alloc.patch",
+    "patches/mi-UGens/miplaits-plural-guest.patch",
+]
 sources = [
     "projects/MiPlaits/MiPlaits.cpp",
     "eurorack/plaits/resources.cc",
