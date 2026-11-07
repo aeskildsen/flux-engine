@@ -1,0 +1,34 @@
+MiPlaits: read the engine's functions from the constant interface table.
+
+Since SuperSonic v0.95.0, one process can have more than one engine (World).
+Each World has its own copy of the interface table, and PluginLoad gets that
+copy as inTable. The copy goes away with its World. The old code kept inTable
+in ft, so after the World that loaded the plugin last stops, ft points to
+freed memory. ft now points to gInterfaceTable, the constant table that
+SuperSonic's own plugins use. DefineDtorUnit still registers the UGen through
+inTable, in the World that loads the plugin.
+
+diff --git i/projects/MiPlaits/MiPlaits.cpp w/projects/MiPlaits/MiPlaits.cpp
+index adc8944..7608348 100644
+--- i/projects/MiPlaits/MiPlaits.cpp
++++ w/projects/MiPlaits/MiPlaits.cpp
+@@ -39,7 +39,10 @@ float kSampleRate = 48000.0f;
+ float a0 = (440.0f / 8.0f) / kSampleRate;
+ const size_t   kBlockSize = plaits::kBlockSize;
+ 
+-static InterfaceTable *ft;
++// The engine's functions come from the one constant table. The table that
++// PluginLoad gets (inTable) belongs to one World and goes away with it, so
++// the plugin does not keep it.
++static const InterfaceTable* const ft = &gInterfaceTable;
+ 
+ 
+ struct MiPlaits : public Unit {
+@@ -239,7 +242,6 @@ void MiPlaits_next( MiPlaits *unit, int inNumSamples)
+ 
+ 
+ PluginLoad(MiPlaits) {
+-    ft = inTable;
+     DefineDtorUnit(MiPlaits);
+ }
+ 

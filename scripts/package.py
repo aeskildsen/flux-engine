@@ -52,7 +52,7 @@ Made by flux-engine scripts/package.py. BUILDINFO gives the source commits.
 
 ## Contents
 
-- `dist/`: the web engine (client, workers, `wasm/scsynth-nrt.wasm`). Serve
+- `dist/`: the web engine (client, workers, `wasm/clockwork-scsynth.wasm`). Serve
   it as static files; give its URL to the SuperSonic client as `baseURL` and
   as `coreBaseURL`.
 - `classes/`: the SuperCollider class files of the UGens. Put them on the
@@ -125,7 +125,7 @@ def pack(src: Path, tarball: Path, top: str) -> None:
 
 
 def main() -> None:
-    wasm = DIST / "wasm" / "scsynth-nrt.wasm"
+    wasm = DIST / "wasm" / "clockwork-scsynth.wasm"
     if not wasm.is_file():
         sys.exit(f"package: no {wasm} (run scripts/build-web.sh)")
     # The hook input changes when a UGen is added, removed or changed.

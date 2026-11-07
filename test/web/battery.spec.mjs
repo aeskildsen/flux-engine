@@ -52,7 +52,7 @@ const test = base.extend({
       baseURL: "/dist/",
       workerBaseURL: "/dist/workers/",
       wasmBaseURL: "/dist/wasm/",
-      wasmUrl: "/dist/wasm/scsynth-nrt.wasm",
+      wasmUrl: "/dist/wasm/clockwork-scsynth.wasm",
       synthdefBaseURL: "/dist/synthdefs/",
       sampleBaseURL: "/dist/samples/",
       snapshotIntervalMs: 25,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the web engine (scsynth-nrt.wasm, the client and the workers) with
+# Builds the web engine (clockwork-scsynth.wasm, the client and the workers) with
 # the flux-engine UGens into build/web/dist. Runs in the dev box or in the
 # toolchain image.
 #
@@ -83,7 +83,7 @@ rm -rf "$out/dist"
 mkdir -p "$out"
 cp -r "$supersonic/dist" "$out/dist"
 
-echo "build-web: built $out/dist/wasm/scsynth-nrt.wasm ($(stat -c %s "$out/dist/wasm/scsynth-nrt.wasm") bytes)"
+echo "build-web: built $out/dist/wasm/clockwork-scsynth.wasm ($(stat -c %s "$out/dist/wasm/clockwork-scsynth.wasm") bytes)"
 if grep -qx 'kind=development' "$root/build/isospin/BUILDINFO"; then
 	echo "build-web: WARNING: development build (isospin UGens from a working copy); do not release it" >&2
 fi

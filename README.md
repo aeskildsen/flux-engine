@@ -28,7 +28,7 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | UGen | Source |
 |---|---|
 | `PhysWoodbar` | `woodbar.dsp` in [isospin](https://github.com/aeskildsen/isospin) |
-| `MiPlaits` | [mi-UGens](https://github.com/v7b1/mi-UGens) (Mutable Instruments Plaits), with `patches/mi-UGens/miplaits-rt-alloc.patch`. Its first input is a MIDI note, not Hz. |
+| `MiPlaits` | [mi-UGens](https://github.com/v7b1/mi-UGens) (Mutable Instruments Plaits), with `patches/mi-UGens/miplaits-rt-alloc.patch` and `patches/mi-UGens/miplaits-plural-guest.patch`. Its first input is a MIDI note, not Hz. |
 
 ## Add a UGen
 
@@ -108,7 +108,7 @@ The build folders of the image and of a host build are not compatible; use `--cl
 
 **Reproducible output.** The web build and the package give the same bytes from the same commit, in the toolchain image and on a host with the same toolchain versions, from any checkout path. `scripts/build-web.sh` keeps the build paths out of the output: cargo's `trim-paths` for Rust, and `-ffile-prefix-map` for C and C++ (the paths become `/flux-engine/…`, `/emsdk/…` and `/rustc/<commit>/…`). CMake reads these flags only when it configures a new build folder, so `build-web.sh` stops when the build folder was configured without them; run it once with `--clean`. The native build does not remove the paths.
 
-**Size of the engine:** `scsynth-nrt.wasm` is 1,835,785 bytes (1.8 MB; Release build, isospin 0.2.0, MiPlaits, SuperSonic 0.91.0, 2026-10-25). Without MiPlaits it was 1,627,500 bytes.
+**Size of the engine:** `clockwork-scsynth.wasm` is 2,939,901 bytes (2.9 MB; Release build, isospin 0.3.0, MiPlaits, SuperSonic 0.95.1, 2026-11-07). On SuperSonic 0.91.0 (2026-10-25) `scsynth-nrt.wasm` was 1,835,785 bytes, and 1,627,500 bytes without MiPlaits.
 
 ## Engine package
 
@@ -123,7 +123,7 @@ The result is in `build/package`:
 
 | Path | What it is |
 |---|---|
-| `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/scsynth-nrt.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
+| `flux-engine-<version>/dist/` | The web engine: client, workers, `wasm/clockwork-scsynth.wasm`. Give its URL to the SuperSonic client as `baseURL` and as `coreBaseURL`. |
 | `flux-engine-<version>/supersonic.d.ts` | The TypeScript declarations of the SuperSonic client API, from the SuperSonic submodule. `package.json` names it in `types`, so that `import type { SuperSonic } from 'flux-engine'` types code against the engine in `dist/` |
 | `flux-engine-<version>/classes/` | The class files of the UGens (from the isospin release and the `[[sources]]` entries; `prepare.py` collects them in `build/classes`), for the sclang class path |
 | `flux-engine-<version>/BUILDINFO`, `LICENSE`, `NOTICE.md` | The kind of build and the source commits, the licence, and where the corresponding source is |

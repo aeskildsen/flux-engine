@@ -1,8 +1,8 @@
 diff --git i/dsp/scsynth/CMakeLists.txt w/dsp/scsynth/CMakeLists.txt
-index 0efda224a..ba3a7901c 100644
+index 563a0a038..9d759dd7a 100644
 --- i/dsp/scsynth/CMakeLists.txt
 +++ w/dsp/scsynth/CMakeLists.txt
-@@ -94,6 +94,32 @@ set(SCSYNTH_PLUGIN_SOURCES
+@@ -85,6 +85,34 @@ set(SCSYNTH_PLUGIN_SOURCES
      synth/plugins/sc3-plugins/DistortionUGens.cpp
      synth/plugins/sc3-plugins/MdaUGens.cpp)
  
@@ -16,7 +16,9 @@ index 0efda224a..ba3a7901c 100644
 +#  - sets SCSYNTH_EXTRA_PLUGINS_HEADER to a header that declares the plugins'
 +#    load functions and defines `void SC_ExtraPlugins_Load(InterfaceTable*)`,
 +#    which calls them. SC_Lib_Cintf.cpp includes this header and calls the
-+#    function after the built-in plugins.
++#    function after the built-in plugins, with the World's own interface
++#    table. A plugin registers its UGens through that table (inTable), and
++#    reads the engine's functions from the constant gInterfaceTable.
 +if(DEFINED ENV{SCSYNTH_EXTRA_PLUGINS})
 +    set(SCSYNTH_EXTRA_PLUGINS "$ENV{SCSYNTH_EXTRA_PLUGINS}")
 +endif()
@@ -32,11 +34,11 @@ index 0efda224a..ba3a7901c 100644
 +        COMPILE_DEFINITIONS "SC_EXTRA_PLUGINS_HEADER=\"${SCSYNTH_EXTRA_PLUGINS_HEADER}\"")
 +endif()
 +
- # Where -D looks (a host reads it; the engine reads no files). Native only.
- if(NOT EMSCRIPTEN)
-     list(APPEND SCSYNTH_PLATFORM_SOURCES scsynth_synthdef_dirs.cpp)
+ add_library(scsynth STATIC
+     scsynth_dsp.cpp
+     scsynth_options.cpp
 diff --git i/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp w/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
-index 2a6631a85..e977e7797 100644
+index 50102e16a..eae775080 100644
 --- i/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
 +++ w/dsp/scsynth/synth/server/SC_Lib_Cintf.cpp
 @@ -27,6 +27,10 @@
@@ -50,12 +52,12 @@ index 2a6631a85..e977e7797 100644
  
  // TAU NOTE: Dynamic plugin loading code has been removed.
  // SuperSonic compiles with -DSTATIC_PLUGINS — all UGen plugins are statically
-@@ -147,5 +151,8 @@ void initialize_library(const char* uGensPluginPath) {
-     DemoUGens_Load(&gInterfaceTable);
-     LinkUGen_Load(&gInterfaceTable);
-     SPLimiterUGen_Load(&gInterfaceTable);
+@@ -176,5 +180,8 @@ void initialize_library(World* inWorld) {
+     DemoUGens_Load(table);
+     LinkUGen_Load(table);
+     SPLimiterUGen_Load(table);
 +#    ifdef SC_EXTRA_PLUGINS_HEADER
-+    SC_ExtraPlugins_Load(&gInterfaceTable);
++    SC_ExtraPlugins_Load(table);
 +#    endif
  #endif // STATIC_PLUGINS
  }
