@@ -51,6 +51,9 @@ scripts/build-native.sh
 step "Native reference test (woodbar against native scsynth)"
 test/native-woodbar.sh
 
+step "Native reference test (SuperPos against native scsynth and GrainBuf)"
+test/native-superpos.sh
+
 step "Web build"
 scripts/build-web.sh
 

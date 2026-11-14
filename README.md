@@ -56,6 +56,8 @@ test/native-woodbar.sh
 
 `test/native-woodbar.sh` compares the headless SuperSonic with a render in native scsynth. It also needs sclang and scsynth 3.14.1 on `PATH` (the toolchain image has them from nixpkgs), and numpy for `python3` (else `uv`). It builds the isospin UGens as a plugin for native scsynth (`test/native-plugin`) and takes their classes from `build/isospin/classes`; it does not use the SuperCollider extensions of the machine. It also checks that the SynthDef that the class makes is the same as the fixture of the web tests (`test/assets/wb.scsyndef`).
 
+`test/native-superpos.sh` does the same for the SuperPos granular UGen of isospin, with a test buffer that `/b_gen` fills (the engine reads no files). It also renders the same cloud made of SuperCollider's own `Impulse`, `Phasor` and `GrainBuf` in native scsynth: SuperPos must give the same output (`test/compare-superpos.py`). The SynthDefs are in `test/superpos-synthdefs.scd`; the web fixture is `test/assets/sp.scsyndef`.
+
 The same in the toolchain image:
 
 ```sh
