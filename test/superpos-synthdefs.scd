@@ -6,6 +6,10 @@
 // sp_grainbuf: the same cloud made of SuperCollider's own UGens (Impulse,
 //              Phasor, GrainBuf with two channels). SuperPos must give the
 //              same output in both channels.
+// sp_live:     SuperPosLive on a sine that is 440 Hz for 1 s and 880 Hz
+//              after, recorded into buffer `buf` (1 s), the grains 0.1 s
+//              behind the record head. Freeze goes on at `freezeAt` seconds
+//              (the default, 100, is never in a test).
 //
 // The arguments have the values of the test as defaults. amp keeps the
 // peak below 1: the recording of SuperSonic clips at full scale. The other scripts
@@ -22,8 +26,16 @@
         // SuperPos has 64 grains; GrainBuf starts no grain when 64 are
         // active, so it needs 65.
         Out.ar(out, GrainBuf.ar(2, trig, grainDur, buf, transpose.midiratio, pos, 2, 0, -1, 65) * amp);
+    }),
+    SynthDef(\sp_live, { |out = 0, buf = 1, freezeAt = 100, position = 0.1, grainDur = 0.05, overlap = 4, amp = 0.5|
+        var in = SinOsc.ar(Env.step([440, 880], [1, 1]).kr);
+        var freeze = Sweep.kr(0, 1) >= freezeAt;
+        Out.ar(out, SuperPosLive.ar(in, buf, freeze, position, grainDur, overlap, normalize: 0) * amp);
     })
 ];
+
+// The live record buffer: 1 s, mono, at 48 kHz.
+~superposLiveFrames = 48000;
 
 // The test buffer: 8192 frames, a sum of sines made by /b_gen sine1 (flags 5:
 // normalise and clear). The same commands fill it in every engine.

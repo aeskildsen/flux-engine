@@ -51,12 +51,15 @@ echo "== SynthDefs"
 sclang "$here/make-superpos-synthdefs.scd" "$out" > "$out/make-synthdefs.log" 2>&1 \
 	|| { tail -n 20 "$out/make-synthdefs.log"; exit 1; }
 [ -f "$out/sp.scsyndef" ] || { echo "native-superpos: sclang wrote no sp.scsyndef" >&2; tail -n 20 "$out/make-synthdefs.log"; exit 1; }
-# The web test uses the fixture; it must be the SynthDef that the class makes.
-if ! cmp -s "$out/sp.scsyndef" "$here/assets/sp.scsyndef"; then
-	echo "native-superpos: sp.scsyndef differs from test/assets/sp.scsyndef (copy $out/sp.scsyndef there)" >&2
-	exit 1
-fi
-echo "OK: sp.scsyndef is the same as test/assets/sp.scsyndef"
+# The web tests use the fixtures; they must be the SynthDefs that the classes
+# make.
+for def in sp sp_live; do
+	if ! cmp -s "$out/$def.scsyndef" "$here/assets/$def.scsyndef"; then
+		echo "native-superpos: $def.scsyndef differs from test/assets/$def.scsyndef (copy $out/$def.scsyndef there)" >&2
+		exit 1
+	fi
+	echo "OK: $def.scsyndef is the same as test/assets/$def.scsyndef"
+done
 
 echo "== Headless SuperSonic"
 python3 "$here/native-superpos-headless.py" "$server" "$out/sp.scsyndef" "$out/supersonic.wav" > "$out/headless.log" 2>&1 \
@@ -67,14 +70,16 @@ echo "== Native scsynth renders"
 UGEN_PLUGINS_PATH="$sc_prefix/lib/SuperCollider/plugins:$root/build/test/native-plugin" \
 	sclang "$here/native-superpos-render.scd" "$out" > "$out/render.log" 2>&1 \
 	|| { tail -n 20 "$out/render.log"; exit 1; }
-for f in sp sp_grainbuf; do
+for f in sp sp_grainbuf sp_live_open sp_live_frozen; do
 	[ -f "$out/$f.wav" ] || { echo "native-superpos: no $f.wav" >&2; tail -n 20 "$out/render.log"; exit 1; }
 done
 
 echo "== Compare"
 cd "$here"
 if python3 -c 'import numpy' 2> /dev/null; then
-	python3 compare-superpos.py "$out/sp.wav" "$out/sp_grainbuf.wav" "$out/supersonic.wav"
+	py() { python3 "$@"; }
 else
-	uv run --quiet --no-project --managed-python --python 3.12 --with numpy python compare-superpos.py "$out/sp.wav" "$out/sp_grainbuf.wav" "$out/supersonic.wav"
+	py() { uv run --quiet --no-project --managed-python --python 3.12 --with numpy python "$@"; }
 fi
+py compare-superpos.py "$out/sp.wav" "$out/sp_grainbuf.wav" "$out/supersonic.wav"
+py compare-superpos-live.py "$out/sp_live_open.wav" "$out/sp_live_frozen.wav"
