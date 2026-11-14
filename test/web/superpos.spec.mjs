@@ -89,9 +89,10 @@ test("SuperPos plays a cloud from a buffer at the output node", async ({ harness
 
   expect(result.fails).toEqual([]);
   expect(result.finite).toBe(true);
-  // The native renders of the same cloud peak at 0.614. The cloud is on the
-  // left channel only, and the analyser mixes the two channels down to one
-  // with a gain of 0.5 for each, so it sees a peak of about 0.307.
-  expect(result.peak).toBeGreaterThan(0.25);
-  expect(result.peak).toBeLessThan(0.35);
+  // The native renders of the same cloud peak at 0.434 in each channel (pan
+  // 0: the mono sum times cos(pi / 4)). The analyser mixes the two equal
+  // channels down to one with a gain of 0.5 for each, so it sees the same
+  // peak.
+  expect(result.peak).toBeGreaterThan(0.39);
+  expect(result.peak).toBeLessThan(0.48);
 });

@@ -1,8 +1,11 @@
 // The SuperPos test SynthDefs, for test/native-superpos.sh and the web test.
 //
-// sp:          SuperPos, mono, to bus `out`.
+// sp:          SuperPos, stereo, to buses `out` and `out` + 1, without its
+//              level control (normalize 0), so that it is the plain sum of
+//              the grains, as GrainBuf.
 // sp_grainbuf: the same cloud made of SuperCollider's own UGens (Impulse,
-//              Phasor, GrainBuf). SuperPos must give the same output.
+//              Phasor, GrainBuf with two channels). SuperPos must give the
+//              same output in both channels.
 //
 // The arguments have the values of the test as defaults. amp keeps the
 // peak below 1: the recording of SuperSonic clips at full scale. The other scripts
@@ -10,7 +13,7 @@
 // SynthDef files.
 ~superposDefs = [
     SynthDef(\sp, { |out = 0, buf = 0, pointerRate = 0.5, grainDur = 0.05, overlap = 4, transpose = 7, amp = 0.5|
-        Out.ar(out, SuperPos.ar(buf, pointerRate, grainDur, overlap, transpose) * amp);
+        Out.ar(out, SuperPos.ar(buf, pointerRate, grainDur, overlap, transpose, normalize: 0) * amp);
     }),
     SynthDef(\sp_grainbuf, { |out = 0, buf = 0, pointerRate = 0.5, grainDur = 0.05, overlap = 4, transpose = 7, amp = 0.5|
         var frames = BufFrames.kr(buf);
@@ -18,7 +21,7 @@
         var pos = Phasor.ar(0, pointerRate * BufRateScale.kr(buf), 0, frames) / frames;
         // SuperPos has 64 grains; GrainBuf starts no grain when 64 are
         // active, so it needs 65.
-        Out.ar(out, GrainBuf.ar(1, trig, grainDur, buf, transpose.midiratio, pos, 2, 0, -1, 65) * amp);
+        Out.ar(out, GrainBuf.ar(2, trig, grainDur, buf, transpose.midiratio, pos, 2, 0, -1, 65) * amp);
     })
 ];
 

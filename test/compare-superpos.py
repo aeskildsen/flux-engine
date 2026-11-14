@@ -7,8 +7,9 @@
    SuperSonic recording starts with silence, so both files are aligned at
    their first non-zero frame.
 
-The limit for both is MAX_DIFF over FRAMES frames, and the cloud must be
-loud enough (EXPECTED_MIN_PEAK) so that a silent pair does not pass.
+Each check compares both channels. The limit for both is MAX_DIFF over
+FRAMES frames, and the cloud must be loud enough (EXPECTED_MIN_PEAK) so that
+a silent pair does not pass. All files must have two channels.
 
 Usage: compare-superpos.py <sp.wav> <sp_grainbuf.wav> <supersonic.wav>
 Exit status 0 when all checks pass.
@@ -21,11 +22,12 @@ import numpy as np
 FRAMES = 48000
 MAX_DIFF = 1e-5
 EXPECTED_MIN_PEAK = 0.2
+CHANNELS = 2
 
 
 def read_wav(path):
-    """The first channel of a WAV file (PCM 16, 24, 32 bit or IEEE float 32
-    bit) as float64, and the sample rate."""
+    """The frames of a WAV file (PCM 16, 24, 32 bit or IEEE float 32 bit) as
+    float64, shape (frames, channels), and the sample rate."""
     data = open(path, "rb").read()
     if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
         sys.exit(f"FAIL: {path} is not a WAV file")
@@ -56,11 +58,11 @@ def read_wav(path):
         a = np.frombuffer(samples, "<i4") / 2.0**31
     else:
         sys.exit(f"FAIL: {path}: WAV format {tag} with {bits} bits is not supported")
-    return a.reshape(-1, channels)[:, 0], rate
+    return a.reshape(-1, channels), rate
 
 
 def first_nonzero(a):
-    nz = np.nonzero(np.abs(a) > 1e-6)[0]
+    nz = np.nonzero(np.abs(a).max(axis=1) > 1e-6)[0]
     return int(nz[0]) if len(nz) else None
 
 
@@ -71,9 +73,10 @@ def compare(name, a, b):
     n = min(len(a), len(b), FRAMES)
     if n < FRAMES:
         failures.append(f"{name}: only {n} frames to compare")
-    diff = np.abs(a[:n] - b[:n])
+    diff = np.abs(a[:n] - b[:n]).max(axis=1)
     worst = float(diff.max()) if n else float("inf")
-    print(f"{name}: largest sample difference over {n} frames: {worst:.2e} (at frame {int(diff.argmax()) if n else -1})")
+    print(f"{name}: largest sample difference over {n} frames, both channels: {worst:.2e} "
+          f"(at frame {int(diff.argmax()) if n else -1})")
     if not worst < MAX_DIFF:
         failures.append(f"{name}: largest difference {worst:.2e}, limit {MAX_DIFF:.0e}")
 
@@ -83,7 +86,10 @@ ref, sr_ref = read_wav(sys.argv[2])
 live, sr_live = read_wav(sys.argv[3])
 for name, a, sr in (("sp", sp, sr_sp), ("sp_grainbuf", ref, sr_ref), ("supersonic", live, sr_live)):
     peak = float(np.abs(a).max()) if len(a) else 0.0
-    print(f"{name}: {len(a)} frames, {sr} Hz, peak {peak:.3f}, first non-zero frame {first_nonzero(a)}")
+    print(f"{name}: {len(a)} frames, {a.shape[1]} channels, {sr} Hz, peak {peak:.3f}, "
+          f"first non-zero frame {first_nonzero(a)}")
+    if a.shape[1] != CHANNELS:
+        failures.append(f"{name}: {a.shape[1]} channels, expected {CHANNELS}")
     if sr != 48000:
         failures.append(f"{name}: sample rate {sr}, expected 48000")
     if peak < EXPECTED_MIN_PEAK:
