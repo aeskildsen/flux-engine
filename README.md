@@ -46,24 +46,19 @@ python3 -m unittest discover -s test -p 'test_*.py'
 
 ## Build and test (native)
 
-The toolchain is SuperSonic's (CMake, a C++ compiler, Rust, the audio development libraries) plus Python 3.11 or later. The first build downloads the isospin release into `build/downloads` and checks its SHA-256.
+Run the scripts in the toolchain image with `scripts/in-image.sh` (needs podman). The first build downloads the isospin release into `build/downloads` and checks its SHA-256.
 
 ```sh
 git submodule update --init --recursive
-scripts/build-native.sh
-test/native-woodbar.sh
+scripts/in-image.sh scripts/build-native.sh
+scripts/in-image.sh test/native-woodbar.sh
 ```
 
 `test/native-woodbar.sh` compares the headless SuperSonic with a render in native scsynth. It also needs sclang and scsynth 3.14.1 on `PATH` (the toolchain image has them from nixpkgs), and numpy for `python3` (else `uv`). It builds the isospin UGens as a plugin for native scsynth (`test/native-plugin`) and takes their classes from `build/isospin/classes`; it does not use the SuperCollider extensions of the machine. It also checks that the SynthDef that the class makes is the same as the fixture of the web tests (`test/assets/wb.scsyndef`).
 
 `test/native-superpos.sh` does the same for the SuperPos granular UGen of isospin, with a test buffer that `/b_gen` fills (the engine reads no files). It also renders the same cloud made of SuperCollider's own `Impulse`, `Phasor` and `GrainBuf` in native scsynth: SuperPos must give the same output (`test/compare-superpos.py`). For SuperPosLive it renders a sine input that changes from 440 to 880 Hz, once with the recording open and once frozen, and checks that the output follows the input or keeps it (`test/compare-superpos-live.py`). The SynthDefs are in `test/superpos-synthdefs.scd`; the web fixtures are `test/assets/sp.scsyndef` and `test/assets/sp_live.scsyndef`. `test/web/superpos-cpu.spec.mjs` is a measurement, not a test: with `SUPERPOS_CPU=1` it finds how many SuperPos voices the web engine plays in real time at overlap 5, 20 and 60.
 
-The same in the toolchain image:
-
-```sh
-scripts/in-image.sh scripts/build-native.sh
-scripts/in-image.sh test/native-woodbar.sh
-```
+The scripts also run on a host that has the toolchain: SuperSonic's (CMake, a C++ compiler, Rust, the audio development libraries), Python 3.11 or later, and for the tests sclang, scsynth and numpy as above. Use `--clean` on the build scripts when you change between the host and the image.
 
 ## Build and test (web)
 
@@ -77,7 +72,7 @@ The web build needs the toolchain of SuperSonic's web build:
 | Node.js | the one in the Emscripten SDK |
 | Chromium (tests) | the one of `@playwright/test` 1.62.1 |
 
-The `Containerfile` is the record of these versions. The scripts run the same in the toolchain image and on a host that has the toolchain (for example the `dev` box, with the Emscripten SDK in `~/emsdk`).
+The `Containerfile` is the record of these versions. The scripts run the same in the toolchain image and on a host that has the same toolchain.
 
 ```sh
 scripts/build-web.sh
@@ -183,11 +178,11 @@ The tests of `track.py` are in `test/test_track.py` (no network and no git).
 Set `ISOSPIN_DIR` to an isospin working copy, in the environment or in `local.env` (not in git):
 
 ```sh
-echo 'ISOSPIN_DIR=$HOME/gp/audio/isospin' > local.env  # the environment has priority
-scripts/build-native.sh
+echo 'ISOSPIN_DIR=~/src/isospin' > local.env  # the environment has priority
+scripts/in-image.sh scripts/build-native.sh
 ```
 
-The build then makes the UGen sources from that working copy with isospin's `scripts/build-sc-static.py`, and compiles only the UGens that changed. This needs Faust and Python 3.11 or later. The build is a development build: the scripts print a warning, and `build/isospin/BUILDINFO` has `kind=development`. Do not release it. To ship a change, release isospin and change the `[isospin]` entry in `ugens.toml`.
+The build then makes the UGen sources from that working copy with isospin's `scripts/build-sc-static.py`, and compiles only the UGens that changed. This needs Faust and Python 3.11 or later. The toolchain image has both (Faust at the version of the isospin releases), and `scripts/in-image.sh` mounts the working copy read-only at the same path. An empty `ISOSPIN_DIR` in the environment turns `local.env` off. The build is a development build: the scripts print a warning, and `build/isospin/BUILDINFO` has `kind=development`. Do not release it. To ship a change, release isospin and change the `[isospin]` entry in `ugens.toml`.
 
 ## License
 

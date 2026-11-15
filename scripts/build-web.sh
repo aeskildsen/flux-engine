@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the web engine (clockwork-scsynth.wasm, the client and the workers) with
-# the flux-engine UGens into build/web/dist. Runs in the dev box or in the
-# toolchain image.
+# the flux-engine UGens into build/web/dist. Runs in the toolchain image
+# (scripts/in-image.sh) or on a host with the same toolchain.
 #
 # SuperSonic's own scripts/build-web.sh does the build. It reads the hook from
 # the SCSYNTH_EXTRA_PLUGINS environment variable, so the script needs no

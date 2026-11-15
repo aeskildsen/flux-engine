@@ -2,3 +2,6 @@
 /local.env
 __pycache__/
 /node_modules/
+
+# Tailor writes these Nix fragments on each alter. flux-engine has no Nix dev shell.
+/nix/
