@@ -12,7 +12,7 @@ import os, secrets, socket, struct, subprocess, tempfile, time, sys
 
 # The same values as ~superposBufferFrames and ~superposPartials in
 # superpos-synthdefs.scd.
-BUFFER_FRAMES = 8192
+BUFFER_FRAMES = 30000
 PARTIALS = [1, 0.5, 0.8, 0.25, 0.6, 0.1, 0.45, 0.3, 0.05, 0.35, 0.2, 0.15]
 
 

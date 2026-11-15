@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Native SuperPos test. Plays the SuperPos test cloud in headless SuperSonic
 # (build/native/SuperSonic) and renders it in native scsynth, with SuperPos and
-# with the same cloud made of Impulse, Phasor and GrainBuf. Then it compares
-# the three (compare-superpos.py).
+# with the same cloud made of Impulse, Phasor and GrainBuf, and other test
+# renders (see native-superpos-render.scd). Then it compares them
+# (compare-superpos.py, compare-superpos-live.py).
 #
 # The SuperPos class and the native plugin come from the isospin UGens of the
 # build (build/isospin), as in native-woodbar.sh. sclang and scsynth use only
@@ -70,7 +71,8 @@ echo "== Native scsynth renders"
 UGEN_PLUGINS_PATH="$sc_prefix/lib/SuperCollider/plugins:$root/build/test/native-plugin" \
 	sclang "$here/native-superpos-render.scd" "$out" > "$out/render.log" 2>&1 \
 	|| { tail -n 20 "$out/render.log"; exit 1; }
-for f in sp sp_grainbuf sp_live_open sp_live_frozen; do
+for f in sp sp_grainbuf sp_03 sp_grainbuf_03 sp_o3 sp_grainbuf_o3 sp_v1 sp_seed1a sp_seed1b sp_seed2 sp_pool1 sp_pool64 \
+	sp_live_open sp_live_frozen; do
 	[ -f "$out/$f.wav" ] || { echo "native-superpos: no $f.wav" >&2; tail -n 20 "$out/render.log"; exit 1; }
 done
 
@@ -81,5 +83,5 @@ if python3 -c 'import numpy' 2> /dev/null; then
 else
 	py() { uv run --quiet --no-project --managed-python --python 3.12 --with numpy python "$@"; }
 fi
-py compare-superpos.py "$out/sp.wav" "$out/sp_grainbuf.wav" "$out/supersonic.wav"
+py compare-superpos.py "$out"
 py compare-superpos-live.py "$out/sp_live_open.wav" "$out/sp_live_frozen.wav"

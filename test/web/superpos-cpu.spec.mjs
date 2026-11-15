@@ -14,7 +14,7 @@
 
 import { test as base, expect } from "@playwright/test";
 
-const BUFFER_FRAMES = 8192;
+const BUFFER_FRAMES = 30000;
 const PARTIALS = [1, 0.5, 0.8, 0.25, 0.6, 0.1, 0.45, 0.3, 0.05, 0.35, 0.2, 0.15];
 const OVERLAPS = [5, 20, 60];
 const VOICES = [8, 16, 32, 64, 128, 256, 512];
