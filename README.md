@@ -172,6 +172,10 @@ Each release gets one pull request or issue. The workflow leaves out a release t
 
 A manual run (Actions, Track, "Run workflow") can take a given SuperSonic tag instead of the newest, to try the workflow. The repository must allow GitHub Actions to create pull requests (Settings, Actions, General, "Allow GitHub Actions to create and approve pull requests").
 
+To run `track.py` by hand (`scripts/track.py isospin --body <file>`), first run `git submodule update --init --recursive supersonic`. The script reads the SuperSonic version for `engine-version.env` from `supersonic/package.json` in the working tree, so a submodule that is not at its pin gives a wrong version.
+
+A change that needs a new isospin release (for example tests of a new UGen) goes in this order: the isospin pull request, the isospin tag, the bump pull request here, and then the change. Until the bump is merged, `main` pins the old release, and the tests of the new UGen fail.
+
 The tests of `track.py` are in `test/test_track.py` (no network and no git).
 
 ## Change a UGen locally
