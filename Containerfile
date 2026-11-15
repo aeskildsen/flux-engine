@@ -3,21 +3,28 @@
 # record of the toolchain versions. The dev box (Ubuntu 24.04) has the same
 # versions; the image is the reference.
 #
-# Build and use it with scripts/in-image.sh (podman). The image has no
-# Faust: the UGen sources come from the isospin release.
+# Build and use it with scripts/in-image.sh (podman). A release build takes
+# the UGen sources from the isospin release, and needs no Faust. Faust is in
+# the image for development builds from an isospin working copy
+# (ISOSPIN_DIR, see scripts/prepare.py).
 
-# SuperCollider 3.14.1 for the native reference test (test/native-woodbar.sh),
-# from nixpkgs at a pinned commit. The Nix image builds it (from the binary
-# cache) and gives the package with its dependencies (its closure) to the
-# image below; the image needs no Nix. The commit is the one that also gives
-# the Faust version of the isospin releases.
-FROM docker.io/nixos/nix:2.31.5@sha256:a0aa04d262a7682c5ff57438784808f2779de5413476417d2850e02f940464de AS supercollider
+# SuperCollider 3.14.1 for the native reference test (test/native-woodbar.sh)
+# and Faust 2.85.9 for ISOSPIN_DIR builds, from nixpkgs at a pinned commit.
+# The Nix image builds them (from the binary cache) and gives the packages
+# with their dependencies (their closure) to the image below; the image needs
+# no Nix. The commit is the one that also gives the Faust version of the
+# isospin releases, so a development build uses the same Faust as a release.
+FROM docker.io/nixos/nix:2.31.5@sha256:a0aa04d262a7682c5ff57438784808f2779de5413476417d2850e02f940464de AS nixpkgs
 RUN nix --extra-experimental-features 'nix-command flakes' build \
       --out-link /supercollider \
       github:NixOS/nixpkgs/7fd4004d0511991fff3a0524856a9be09e28c5f0#supercollider \
+ && nix --extra-experimental-features 'nix-command flakes' build \
+      --out-link /faust \
+      github:NixOS/nixpkgs/7fd4004d0511991fff3a0524856a9be09e28c5f0#faust \
  && mkdir -p /out/nix/store /out/opt \
- && cp -a $(nix-store --query --requisites /supercollider) /out/nix/store/ \
- && ln -s "$(readlink /supercollider)" /out/opt/supercollider
+ && cp -a $(nix-store --query --requisites /supercollider /faust) /out/nix/store/ \
+ && ln -s "$(readlink /supercollider)" /out/opt/supercollider \
+ && ln -s "$(readlink /faust)" /out/opt/faust
 
 # Ubuntu 24.04 (noble), amd64, pinned by digest.
 FROM docker.io/library/ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
@@ -66,11 +73,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN npx --yes playwright@1.62.1 install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/* /root/.npm
 
-# SuperCollider (see the first stage) and numpy for test/compare-renders.py.
-# sclang uses QtWebEngine, which stops when it runs as root with its sandbox;
-# the image runs as root.
-COPY --from=supercollider /out/ /
-ENV PATH=/opt/supercollider/bin:$PATH QTWEBENGINE_DISABLE_SANDBOX=1
+# SuperCollider and Faust (see the first stage), and numpy for
+# test/compare-renders.py. sclang uses QtWebEngine, which stops when it runs
+# as root with its sandbox; the image runs as root.
+COPY --from=nixpkgs /out/ /
+ENV PATH=/opt/supercollider/bin:/opt/faust/bin:$PATH QTWEBENGINE_DISABLE_SANDBOX=1
 RUN apt-get update && apt-get install -y --no-install-recommends python3-numpy \
  && rm -rf /var/lib/apt/lists/*
 
