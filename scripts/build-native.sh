@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the native SuperSonic server with the flux-engine UGens into
-# build/native. Runs in the dev box or in the toolchain image.
+# build/native. Runs in the toolchain image (scripts/in-image.sh) or on a
+# host with the same toolchain.
 #
 # The cmake calls are the same as in SuperSonic's scripts/build-native.sh,
 # with the build folder in this repository and SCSYNTH_EXTRA_PLUGINS set.

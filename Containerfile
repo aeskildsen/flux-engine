@@ -1,7 +1,7 @@
 # The flux-engine toolchain image: everything that scripts/build-native.sh,
 # scripts/build-web.sh and the web tests (test/web) need. This file is the
-# record of the toolchain versions. The dev box (Ubuntu 24.04) has the same
-# versions; the image is the reference.
+# record of the toolchain versions and the normal place to run the scripts.
+# A host with the same versions also works; the image is the reference.
 #
 # Build and use it with scripts/in-image.sh (podman). A release build takes
 # the UGen sources from the isospin release, and needs no Faust. Faust is in

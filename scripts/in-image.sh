@@ -7,9 +7,9 @@
 #   scripts/in-image.sh npx playwright test -c test/web
 #
 # The repository is mounted at the same path as on the host, so build paths
-# are the same in and out of the image. The build folders of the dev box and
-# of the image are not compatible (other compiler and Emscripten paths): use
-# --clean on the build scripts when you change from one to the other.
+# are the same in and out of the image. The build folders of a host toolchain
+# and of the image are not compatible (other compiler and Emscripten paths):
+# use --clean on the build scripts when you change from one to the other.
 #
 # The Emscripten and npm caches are in the podman volume flux-engine-cache and
 # the Cargo registry in flux-engine-cargo-registry, so that a second run does
