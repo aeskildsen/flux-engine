@@ -1,7 +1,22 @@
-# Builds the engine, runs all tests and releases the engine package when a
-# version tag (v0.91.0-flux.3) is pushed. The tag must be v<FLUX_ENGINE_VERSION>
-# of engine-version.env. A manual run (workflow_dispatch) does the same with no
-# release, to try a commit before it is tagged.
+# Builds the engine, runs all tests and releases the engine package. A release
+# has the tag v<FLUX_ENGINE_VERSION> of engine-version.env (v0.91.0-flux.3).
+#
+# The workflow starts on these events:
+#  - A push to main that changes engine-version.env (for example, the merge of a
+#    Track pull request). When the tag of the new version does not exist, the
+#    workflow makes the release, and with it the tag on the pushed commit. When
+#    the tag exists, the workflow only builds and tests.
+#  - A push of a version tag. The workflow makes the release on that tag. The
+#    tag must be v<FLUX_ENGINE_VERSION>.
+#  - A manual run (workflow_dispatch). The workflow builds and tests, with no
+#    release, to try a commit.
+#
+# GitHub starts no workflow for a tag that GITHUB_TOKEN makes. Thus the tag that
+# a release on main makes does not start a second run. Runs for the same tag go
+# one at a time, and a run makes no release when the release exists.
+#
+# A run on main uses the image cache of main and fills it. A run on a tag can
+# use only the caches of its tag and of main.
 #
 # The steps are in scripts/ci.sh and run in the toolchain image (Containerfile),
 # the same as a local run of scripts/in-image.sh scripts/ci.sh. The local action
@@ -11,7 +26,12 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*-flux.*"]
+    # GitHub does not use path filters for a tag push. Thus each tag push
+    # starts the workflow, and a push to main starts it only when it changes
+    # engine-version.env.
+    paths: [engine-version.env]
   workflow_dispatch:
 
 permissions:
@@ -24,24 +44,75 @@ defaults:
     shell: bash
 
 jobs:
+  # Finds the tag to release, or none. The release job needs the tag before it
+  # starts, for its concurrency group.
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Find the release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+          elif [ "$GITHUB_EVENT_NAME" = push ]; then
+            version=$(sed -n 's/^FLUX_ENGINE_VERSION=//p' engine-version.env)
+            tag="v$version"
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>/dev/null; then
+              echo "::notice::The tag $tag exists. This run builds and tests with no release."
+              tag=
+            fi
+          fi
+          echo "Release tag: ${tag:-none}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: tag
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    # Runs for the same tag go one at a time, so that two runs cannot release
+    # the same version. A run with no tag has a group of its own.
+    concurrency:
+      group: release-${{ needs.tag.outputs.tag || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: ./.github/actions/build-and-test
-        with:
-          release-tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-
-      - name: Create the release
-        if: github.ref_type == 'tag'
+      # Another run for the same tag can have made the release while this run
+      # waited for its concurrency group.
+      - name: Check that the release does not exist
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.tag.outputs.tag }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          if [ -n "$TAG" ] && gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::notice::The release $TAG exists. This run builds and tests with no release."
+            TAG=
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/build-and-test
+        with:
+          release-tag: ${{ steps.release.outputs.tag }}
+
+      # With no tag of that name, gh makes the tag on the commit of this run.
+      - name: Create the release
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          version="${TAG#v}"
           log="$RUNNER_TEMP/flux-engine-$version-test-log.txt"
           cp "$RUNNER_TEMP/test-log.txt" "$log"
           {
@@ -51,9 +122,10 @@ jobs:
             cat "build/package/flux-engine-$version/BUILDINFO"
             echo '```'
           } > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$TAG" \
             "build/package/flux-engine-$version.tgz" \
             "build/package/flux-engine-$version.tgz.sha256" \
             "$log" \
-            --title "flux-engine $GITHUB_REF_NAME" \
+            --target "$GITHUB_SHA" \
+            --title "flux-engine $TAG" \
             --notes-file "$RUNNER_TEMP/notes.md"
