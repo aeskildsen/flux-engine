@@ -21,6 +21,6 @@ Guidance for coding agents in this repository. `README.md` is the reference for 
 
 ## Releases
 
-- Do not make a release package on your machine. A release comes from `.github/workflows/release.yml` on a tag `v<version>`. The order is in the "Release" section of the README.
-- A tag push is outward-facing. Push a tag only when the user tells you to.
+- Do not make a release package on your machine. A release comes from `.github/workflows/release.yml`. A push to `main` that changes the version in `engine-version.env` makes the release and its tag `v<version>`. A push of the tag `v<version>` also makes it.
+- A merge or push to `main` that changes `engine-version.env` releases. So does a tag push. Both are outward-facing. Do them only when the user tells you to.
 - A green Track pull request does not test Flux. Before Flux bumps to a new engine, run Flux's `pnpm test:container`.

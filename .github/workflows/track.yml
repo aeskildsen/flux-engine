@@ -3,8 +3,8 @@
 # as a release (.github/actions/build-and-test), and then:
 #  - opens a pull request with the bump when the build and the tests pass;
 #  - opens an issue with the end of the test log when they fail.
-# The workflow never merges. Merge the pull request and tag the new engine
-# version to release it.
+# The workflow never merges. The merge of the pull request releases the new
+# engine version (.github/workflows/release.yml).
 #
 # A release that already has a pull request or an issue with the same title
 # (open or closed) is left out. Thus each release gets one proposal, and a
@@ -117,7 +117,7 @@ jobs:
             echo
             echo "The build and all tests passed in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID (the test log is an artefact of the run)."
             echo
-            echo "To release: merge, then push the tag \`v$VERSION\`."
+            echo "The merge releases \`v$VERSION\` (Release workflow on \`main\`)."
           } > "$RUNNER_TEMP/pr.md"
           gh pr create --base main --head "$BRANCH" --title "$PR_TITLE" --body-file "$RUNNER_TEMP/pr.md"
 
