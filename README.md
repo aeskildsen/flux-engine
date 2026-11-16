@@ -6,7 +6,7 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 
 ## Layout
 
-| Path | What it is |
+| Path | Contents |
 |---|---|
 | `supersonic/` | SuperSonic, a submodule pinned to a release tag |
 | `patches/supersonic-extra-plugins.patch` | Adds the `SCSYNTH_EXTRA_PLUGINS` hook to SuperSonic's engine build |
@@ -31,6 +31,8 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `MiPlaits` | [mi-UGens](https://github.com/v7b1/mi-UGens) (Mutable Instruments Plaits), with `patches/mi-UGens/miplaits-rt-alloc.patch` and `patches/mi-UGens/miplaits-plural-guest.patch`. Its first input is a MIDI note, not Hz. |
 
 ## Add a UGen
+
+[`docs/add-a-ugen.md`](docs/add-a-ugen.md) follows one UGen from its source files to a note in Flux, and gives a checklist for the next one.
 
 Add an entry to `ugens.toml`. `scripts/prepare.py` generates the CMake source list, the declarations and the `<Name>_Load` calls from it; do not write UGen names into SuperSonic's files. A new isospin UGen needs no change here: release isospin and change the version and SHA-256 of the `[isospin]` entry.
 
