@@ -109,7 +109,7 @@ Run the build scripts in the toolchain image with `scripts/in-image.sh` (see the
 A new or changed isospin UGen needs no change to the manifest, the hook or the build scripts:
 
 1. Release isospin with the UGen.
-2. The daily `track.yml` workflow (or `scripts/track.py isospin --body <file>`) changes the version and SHA-256 of the `[isospin]` entry in `ugens.toml` and opens a pull request.
+2. The daily `track.yml` workflow (or `scripts/track.py isospin --body <file>`) changes the version and SHA-256 of the `[isospin]` entry in `ugens.toml` and opens a pull request. A new SuperSonic release on the same day goes into the same pull request.
 3. Merge it and release the engine. The battery tests the new UGen with no change.
 
 To work on an isospin UGen before a release, set `ISOSPIN_DIR` to an isospin working copy (see "Change a UGen locally" in the README).
