@@ -12,8 +12,8 @@
 # change both values together. ISOSPIN_DIR replaces the release with a
 # working copy (a development build; see README.md).
 [isospin]
-version = "0.4.0"
-sha256 = "22774dad25c7bfb32c579cf77fd471e212e242910de6f61009be9594f6d74cf9"
+version = "0.5.0"
+sha256 = "bbbe22068e205e162f9dbe7895fd82d0f7fa7a74fd4c3cfe669e8821cc1d8b43"
 
 # MiPlaits, Volker Böhm's SuperCollider version of Mutable Instruments
 # Plaits, from mi-UGens (https://github.com/v7b1/mi-UGens), a pinned
