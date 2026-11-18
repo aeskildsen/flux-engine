@@ -125,12 +125,45 @@ class Sha256File(unittest.TestCase):
             track.sha256_from_file("abc  isospin-sc-static-0.3.0.tar.gz\n", "isospin-sc-static-0.3.0.tar.gz")
 
 
-class Outputs(unittest.TestCase):
+SUPERSONIC_BUMP = track.Bump("SuperSonic", "v0.92.0", "SuperSonic text.")
+ISOSPIN_BUMP = track.Bump("isospin", "v0.3.0", "isospin text.")
+
+
+class Proposal(unittest.TestCase):
     def test_names_of_a_supersonic_bump(self):
-        out = track.proposal("SuperSonic", "v0.92.0", "0.92.0-flux.1")
+        out = track.proposal([SUPERSONIC_BUMP], "0.92.0-flux.1")
         self.assertEqual(out["branch"], "track/supersonic-v0.92.0")
         self.assertEqual(out["pr-title"], "Bump SuperSonic to v0.92.0 (engine 0.92.0-flux.1)")
         self.assertEqual(out["issue-title"], "SuperSonic v0.92.0 does not build or pass the tests")
+
+    def test_names_of_an_isospin_bump(self):
+        out = track.proposal([ISOSPIN_BUMP], "0.91.0-flux.4")
+        self.assertEqual(out["branch"], "track/isospin-v0.3.0")
+        self.assertEqual(out["pr-title"], "Bump isospin to v0.3.0 (engine 0.91.0-flux.4)")
+        self.assertEqual(out["issue-title"], "isospin v0.3.0 does not build or pass the tests")
+
+    def test_names_of_a_combined_bump(self):
+        out = track.proposal([SUPERSONIC_BUMP, ISOSPIN_BUMP], "0.92.0-flux.1")
+        self.assertEqual(out["branch"], "track/supersonic-v0.92.0+isospin-v0.3.0")
+        self.assertEqual(out["pr-title"],
+                         "Bump SuperSonic to v0.92.0 and isospin to v0.3.0 (engine 0.92.0-flux.1)")
+        self.assertEqual(out["issue-title"],
+                         "SuperSonic v0.92.0 and isospin v0.3.0 do not build or pass the tests")
+
+    def test_the_combined_branch_is_a_valid_ref_name(self):
+        import subprocess
+        branch = track.proposal([SUPERSONIC_BUMP, ISOSPIN_BUMP], "0.92.0-flux.1")["branch"]
+        check = subprocess.run(["git", "check-ref-format", "--branch", branch],
+                               capture_output=True)
+        self.assertEqual(check.returncode, 0)
+
+    def test_the_body_has_each_bump_and_the_engine_version(self):
+        body = track.proposal_body([SUPERSONIC_BUMP, ISOSPIN_BUMP], "0.92.0-flux.1")
+        self.assertEqual(body, "SuperSonic text.\n\nisospin text.\n\n"
+                               "The engine version becomes `0.92.0-flux.1`.\n")
+
+
+class Outputs(unittest.TestCase):
 
     def test_github_output_lines(self):
         lines = track.output_lines({"found": "true", "tag": "v0.92.0"})

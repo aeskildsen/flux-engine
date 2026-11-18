@@ -1,14 +1,15 @@
-# Looks once a day for a new release of SuperSonic and of isospin. For each new
-# release, it makes the bump (scripts/track.py), builds and tests it the same
-# as a release (.github/actions/build-and-test), and then:
+# Looks once a day for new releases of SuperSonic and isospin. It makes one
+# bump with all the new releases (scripts/track.py), builds and tests it the
+# same as a release (.github/actions/build-and-test), and then:
 #  - opens a pull request with the bump when the build and the tests pass;
 #  - opens an issue with the end of the test log when they fail.
 # The workflow never merges. The merge of the pull request releases the new
 # engine version (.github/workflows/release.yml).
 #
-# A release that already has a pull request or an issue with the same title
-# (open or closed) is left out. Thus each release gets one proposal, and a
-# closed one stays closed.
+# A bump that already has a pull request or an issue with the same title
+# (open or closed) is left out. Thus each set of releases gets one proposal,
+# and a closed one stays closed. A later release of one of the targets gives
+# a new set, and thus a new proposal.
 #
 # A manual run can take a given SuperSonic tag instead of the newest, to test
 # the workflow (for example with a tag that breaks the hook patch).
@@ -40,10 +41,6 @@ defaults:
 
 jobs:
   track:
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [supersonic, isospin]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -53,17 +50,16 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Look for a new release
+      - name: Look for new releases
         id: find
         env:
-          TARGET: ${{ matrix.target }}
-          TAG: ${{ matrix.target == 'supersonic' && inputs.supersonic-tag || '' }}
+          TAG: ${{ inputs.supersonic-tag }}
         run: |
-          args=("$TARGET" --body "$RUNNER_TEMP/body.md")
+          args=(--body "$RUNNER_TEMP/body.md")
           if [ -n "$TAG" ]; then args+=(--tag "$TAG"); fi
           python3 -I scripts/track.py "${args[@]}" >> "$GITHUB_OUTPUT"
 
-      - name: Leave out a release that has a pull request or an issue
+      - name: Leave out a bump that has a pull request or an issue
         id: new
         if: steps.find.outputs.found == 'true'
         env:
@@ -76,7 +72,7 @@ jobs:
           issues=$(gh issue list --state all --search "\"$ISSUE_TITLE\" in:title" --json title \
             | jq --arg t "$ISSUE_TITLE" '[.[] | select(.title == $t)] | length')
           if [ "$prs" -gt 0 ] || [ "$issues" -gt 0 ]; then
-            echo "A pull request or an issue for this release exists: $PR_TITLE"
+            echo "A pull request or an issue for this bump exists: $PR_TITLE"
             echo "new=false" >> "$GITHUB_OUTPUT"
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
@@ -101,8 +97,6 @@ jobs:
         if: steps.new.outputs.new == 'true'
         continue-on-error: true
         uses: ./.github/actions/build-and-test
-        with:
-          log-name: test-log-${{ matrix.target }}
 
       - name: Open a pull request
         if: steps.new.outputs.new == 'true' && steps.test.outcome == 'success'

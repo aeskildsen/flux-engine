@@ -1,27 +1,34 @@
 #!/usr/bin/env python3
-"""Look for a new release of SuperSonic or isospin, and make the bump.
+"""Look for new releases of SuperSonic and isospin, and make one bump.
 
 The tracking workflow (.github/workflows/track.yml) runs this script once a
-day. When there is a newer release, the script changes the working tree:
+day. For each target that has a newer release, the script changes the
+working tree:
 
   supersonic  The SuperSonic submodule goes to the newest release tag
               (vX.Y.Z only; no pre-releases, no branches), with its own
-              submodules. engine-version.env gets <X.Y.Z>-flux.1.
+              submodules.
   isospin     The [isospin] entry of ugens.toml gets the version and the
-              SHA-256 of the newest isospin release. The flux.<n> part of
-              engine-version.env goes up by one.
+              SHA-256 of the newest isospin release.
+
+Then engine-version.env gets one new version for all the changes:
+<X.Y.Z>-flux.1 when SuperSonic is at a new version X.Y.Z, else the flux.<n>
+part goes up by one. Thus a SuperSonic and an isospin release on the same
+day give one bump, with one branch and one pull request.
+
+With no target, the script looks at all targets.
 
 The script does not commit. It writes the result for GitHub Actions to
-stdout, one key=value line each: found (true or false), tag, version,
-branch, pr-title and issue-title. It writes the text of the pull request or
-issue to the --body file. Log lines go to stderr.
+stdout, one key=value line each: found (true or false), version, branch,
+pr-title and issue-title. It writes the text of the pull request or issue to
+the --body file. Log lines go to stderr.
 
 --tag <tag> takes that SuperSonic tag instead of the newest, for a test run
 (for example a tag that is known to break the hook patch).
 
 Needs Python 3.11 or later (standard library only), git and network access.
 
-Usage: scripts/track.py supersonic|isospin --body <file> [--tag <tag>]
+Usage: scripts/track.py [supersonic] [isospin] --body <file> [--tag <tag>]
 """
 import argparse
 import json
@@ -31,6 +38,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 SUPERSONIC = ROOT / "supersonic"
@@ -137,13 +145,33 @@ def sha256_from_file(text: str, name: str) -> str:
     raise TrackError(f"the .sha256 file has no line for {name}")
 
 
-def proposal(name: str, tag: str, engine: str) -> dict[str, str]:
-    """The branch and the titles of the pull request and the issue."""
+class Bump(NamedTuple):
+    """One target at a new release, with the text for the proposal."""
+    name: str
+    tag: str
+    body: str
+
+
+def proposal(bumps: list[Bump], engine: str) -> dict[str, str]:
+    """The branch and the titles of the pull request and the issue for all
+    the bumps together."""
+    branch = "+".join(f"{b.name.lower()}-{b.tag}" for b in bumps)
+    releases = " and ".join(f"{b.name} {b.tag}" for b in bumps)
+    targets = " and ".join(f"{b.name} to {b.tag}" for b in bumps)
+    verb = "does" if len(bumps) == 1 else "do"
     return {
-        "branch": f"track/{name.lower()}-{tag}",
-        "pr-title": f"Bump {name} to {tag} (engine {engine})",
-        "issue-title": f"{name} {tag} does not build or pass the tests",
+        "branch": f"track/{branch}",
+        "pr-title": f"Bump {targets} (engine {engine})",
+        "issue-title": f"{releases} {verb} not build or pass the tests",
     }
+
+
+def proposal_body(bumps: list[Bump], engine: str) -> str:
+    """The text of the pull request or the issue: the text of each bump, then
+    the engine version."""
+    parts = [b.body.strip() for b in bumps]
+    parts.append(f"The engine version becomes `{engine}`.")
+    return "\n\n".join(parts) + "\n"
 
 
 def output_lines(values: dict[str, str]) -> str:
@@ -170,7 +198,9 @@ def fetch(url: str) -> bytes:
         return response.read()
 
 
-def track_supersonic(tag: str | None) -> tuple[dict[str, str], str]:
+def bump_supersonic(tag: str | None) -> Bump | None:
+    """Move the SuperSonic submodule to the newest release, or to the given
+    tag. None when SuperSonic is at the newest release."""
     current = json.loads((SUPERSONIC / "package.json").read_text())["version"]
     if tag is None:
         tag = newest_tag(tags_from_ls_remote(git("ls-remote", "--tags", SUPERSONIC_REPO)))
@@ -178,7 +208,7 @@ def track_supersonic(tag: str | None) -> tuple[dict[str, str], str]:
             raise TrackError(f"{SUPERSONIC_REPO} has no release tag")
         if not is_newer(tag[1:], current):
             log(f"SuperSonic {tag} is the newest release; the engine has {current}")
-            return {"found": "false"}, ""
+            return None
     elif not RELEASE_TAG.match(tag) or tag[1:] == current:
         raise TrackError(f"--tag {tag} is not a release tag vX.Y.Z other than v{current}")
     if git("status", "--porcelain", cwd=SUPERSONIC):
@@ -190,10 +220,6 @@ def track_supersonic(tag: str | None) -> tuple[dict[str, str], str]:
     git("fetch", "--quiet", "--depth", "1", "origin", "tag", old, "tag", tag, cwd=SUPERSONIC)
     git("checkout", "--quiet", tag, cwd=SUPERSONIC)
     git("submodule", "update", "--quiet", "--init", "--recursive", "--depth", "1", cwd=SUPERSONIC)
-
-    version = tag[1:]
-    engine = next_engine_version(engine_version(ENGINE_VERSION_FILE.read_text()), version)
-    ENGINE_VERSION_FILE.write_text(set_engine_version(ENGINE_VERSION_FILE.read_text(), engine))
 
     check = subprocess.run(["git", "-C", str(SUPERSONIC), "apply", "--check", str(HOOK_PATCH)],
                            capture_output=True, text=True)
@@ -208,13 +234,14 @@ def track_supersonic(tag: str | None) -> tuple[dict[str, str], str]:
         if not toolchain else
         "**SuperSonic's toolchain pins changed.** Change the `Containerfile` to the same "
         f"versions:\n\n```diff\n{toolchain}\n```")
-    body = (f"SuperSonic {old} → {tag} ({SUPERSONIC_REPO}/compare/{old}...{tag}). "
-            f"The engine version becomes `{engine}`.\n\n{hook}\n\n{toolchain_text}\n")
-    return {"found": "true", "tag": tag, "version": engine,
-            **proposal("SuperSonic", tag, engine)}, body
+    body = (f"SuperSonic {old} → {tag} ({SUPERSONIC_REPO}/compare/{old}...{tag}).\n\n"
+            f"{hook}\n\n{toolchain_text}")
+    return Bump("SuperSonic", tag, body)
 
 
-def track_isospin() -> tuple[dict[str, str], str]:
+def bump_isospin() -> Bump | None:
+    """Pin the newest isospin release in ugens.toml. None when ugens.toml has
+    the newest release."""
     import tomllib
     current = tomllib.loads(UGENS_FILE.read_text())["isospin"]["version"]
     release = json.loads(fetch(ISOSPIN_API))
@@ -224,36 +251,59 @@ def track_isospin() -> tuple[dict[str, str], str]:
     version = tag[1:]
     if not is_newer(version, current):
         log(f"isospin {tag} is the newest release; ugens.toml has {current}")
-        return {"found": "false"}, ""
+        return None
 
     log(f"isospin v{current} -> {tag}")
     name = ISOSPIN_FILE.format(version=version)
     sha256 = sha256_from_file(fetch(ISOSPIN_SHA256_URL.format(version=version)).decode(), name)
     UGENS_FILE.write_text(set_isospin_pin(UGENS_FILE.read_text(), version, sha256))
-    supersonic = json.loads((SUPERSONIC / "package.json").read_text())["version"]
-    engine = next_engine_version(engine_version(ENGINE_VERSION_FILE.read_text()), supersonic)
-    ENGINE_VERSION_FILE.write_text(set_engine_version(ENGINE_VERSION_FILE.read_text(), engine))
     body = (f"isospin v{current} → {tag} (https://github.com/aeskildsen/isospin/releases/tag/{tag}): "
             f"the `[isospin]` entry of `ugens.toml` gets the version and the SHA-256 "
-            f"`{sha256}` of `{name}`. The engine version becomes `{engine}`.\n")
-    return {"found": "true", "tag": tag, "version": engine,
-            **proposal("isospin", tag, engine)}, body
+            f"`{sha256}` of `{name}`.")
+    return Bump("isospin", tag, body)
+
+
+def bump_engine_version() -> str:
+    """Write the next engine version to engine-version.env, from the
+    SuperSonic version in the working tree after the bumps."""
+    supersonic = json.loads((SUPERSONIC / "package.json").read_text())["version"]
+    text = ENGINE_VERSION_FILE.read_text()
+    engine = next_engine_version(engine_version(text), supersonic)
+    ENGINE_VERSION_FILE.write_text(set_engine_version(text, engine))
+    return engine
+
+
+TARGETS = ["supersonic", "isospin"]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("target", choices=["supersonic", "isospin"])
+    parser.add_argument("targets", nargs="*", choices=TARGETS, metavar="target",
+                        help="supersonic or isospin (default: all)")
     parser.add_argument("--body", type=Path, required=True,
                         help="the file for the text of the pull request or issue")
     parser.add_argument("--tag", help="a SuperSonic tag to take instead of the newest")
     args = parser.parse_args()
-    if args.tag and args.target != "supersonic":
+    targets = [t for t in TARGETS if t in args.targets] if args.targets else TARGETS
+    if args.tag and "supersonic" not in targets:
         parser.error("--tag is for supersonic only")
     try:
-        values, body = (track_supersonic(args.tag) if args.target == "supersonic"
-                        else track_isospin())
-        args.body.write_text(body)
-        sys.stdout.write(output_lines(values))
+        # SuperSonic first: it stops on a submodule with changes before the
+        # script changes a file.
+        bumps = []
+        if "supersonic" in targets:
+            bumps.append(bump_supersonic(args.tag))
+        if "isospin" in targets:
+            bumps.append(bump_isospin())
+        bumps = [b for b in bumps if b is not None]
+        if not bumps:
+            args.body.write_text("")
+            sys.stdout.write(output_lines({"found": "false"}))
+            return
+        engine = bump_engine_version()
+        args.body.write_text(proposal_body(bumps, engine))
+        sys.stdout.write(output_lines({"found": "true", "version": engine,
+                                       **proposal(bumps, engine)}))
     except TrackError as error:
         sys.exit(f"track: {error}")
 

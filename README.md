@@ -21,7 +21,7 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 | `test/` | Tests of `prepare.py` (`test/test_prepare.py`) and of the built engine (`test/web`: the web engine in Chromium) |
 | `scripts/ci.sh`, `.github/workflows/release.yml` | All builds and tests and the package in one script; the workflow runs it in the toolchain image and releases the package on a version tag |
 | `.github/actions/build-and-test` | Builds the toolchain image and runs `scripts/ci.sh` in it; the release and the tracking workflow use it |
-| `scripts/track.py`, `.github/workflows/track.yml` | Look once a day for a new SuperSonic or isospin release, test the bump and open a pull request or an issue |
+| `scripts/track.py`, `.github/workflows/track.yml` | Look once a day for new SuperSonic and isospin releases, test one bump with all of them and open a pull request or an issue |
 
 ## UGens
 
@@ -158,18 +158,19 @@ scripts/in-image.sh scripts/ci.sh --release v0.91.0-flux.3 # with the tag checks
 
 ## New SuperSonic and isospin releases
 
-`.github/workflows/track.yml` runs once a day. For a new release of SuperSonic (a tag `vX.Y.Z`; no pre-releases) or of isospin, `scripts/track.py` makes the bump on a branch `track/<name>-<tag>`:
+`.github/workflows/track.yml` runs once a day. `scripts/track.py` puts all new releases into one bump, on a branch `track/<name>-<tag>` (for example `track/isospin-v0.5.0`), or `track/supersonic-<tag>+isospin-<tag>` when both have a new release:
 
-- SuperSonic: the submodule goes to the new tag, and `engine-version.env` gets `<X.Y.Z>-flux.1`.
-- isospin: the `[isospin]` entry of `ugens.toml` gets the new version and SHA-256, and the `flux.<n>` of `engine-version.env` goes up by one.
+- SuperSonic (a tag `vX.Y.Z`; no pre-releases): the submodule goes to the new tag.
+- isospin: the `[isospin]` entry of `ugens.toml` gets the new version and SHA-256.
+- `engine-version.env` gets one new version: `<X.Y.Z>-flux.1` for a new SuperSonic version, else the `flux.<n>` goes up by one.
 
-The workflow then builds and tests the bump the same as a release. When all passes, it opens a pull request; when not, an issue with the end of the test log. The text says whether the hook patch applies to the new SuperSonic, and shows a change of SuperSonic's toolchain pins (its `Dockerfile`), which the `Containerfile` must follow. The workflow never merges: merge the pull request, then push the tag of the new version to release it.
+The workflow then builds and tests the bump the same as a release. When all passes, it opens a pull request; when not, an issue with the end of the test log. The text says whether the hook patch applies to the new SuperSonic, and shows a change of SuperSonic's toolchain pins (its `Dockerfile`), which the `Containerfile` must follow. The workflow never merges. The merge of the pull request releases the new engine version.
 
-Each release gets one pull request or issue. The workflow leaves out a release that has one already, also a closed one: close it to skip that release.
+Each bump gets one pull request or issue. The workflow leaves out a bump that has one already, also a closed one: close it to skip those releases. A later release of one of the targets makes a new bump, which again has the skipped release. When a pull request is open and a second target gets a new release, the workflow opens a new pull request with both. Close the first one.
 
 A manual run (Actions, Track, "Run workflow") can take a given SuperSonic tag instead of the newest, to try the workflow. The repository must allow GitHub Actions to create pull requests (Settings, Actions, General, "Allow GitHub Actions to create and approve pull requests").
 
-To run `track.py` by hand (`scripts/track.py isospin --body <file>`), first run `git submodule update --init --recursive supersonic`. The script reads the SuperSonic version for `engine-version.env` from `supersonic/package.json` in the working tree, so a submodule that is not at its pin gives a wrong version.
+To run `track.py` by hand (`scripts/track.py --body <file>` for all targets, or `scripts/track.py isospin --body <file>` for one), first run `git submodule update --init --recursive supersonic`. The script reads the SuperSonic version for `engine-version.env` from `supersonic/package.json` in the working tree, so a submodule that is not at its pin gives a wrong version.
 
 A change that needs a new isospin release (for example tests of a new UGen) goes in this order: the isospin pull request, the isospin tag, the bump pull request here, and then the change. Until the bump is merged, `main` pins the old release, and the tests of the new UGen fail.
 
