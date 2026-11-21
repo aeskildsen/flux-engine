@@ -373,6 +373,13 @@ def prepare_isospin(pin: dict, out: Path, downloads: Path, env: dict[str, str]) 
                     member.name = rest
                     members.append(member)
             tar.extractall(out, members=members, filter="data")
+        # A release tarball has fixed file times, so that the same commit
+        # gives the same bytes. These times are older than the objects of a
+        # build of an earlier release, and a build tool would keep those
+        # objects. Thus each unpacked file gets the time of the unpack.
+        for path in out.rglob("*"):
+            if path.is_file():
+                os.utime(path)
         stamp.write_text(sha256 + "\n")
         print(f"prepare: unpacked {tarball.name}")
     return f"isospin {version}"

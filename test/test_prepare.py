@@ -12,6 +12,7 @@ import sys
 import tarfile
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -154,7 +155,7 @@ class Classes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             (tmp / "isospin" / "classes").mkdir(parents=True)
-            (tmp / "isospin" / "classes" / "PhysWoodbar.sc").write_text("wb")
+            (tmp / "isospin" / "classes" / "IsoWoodbar.sc").write_text("wb")
             (tmp / "mi-UGens" / "sc").mkdir(parents=True)
             (tmp / "mi-UGens" / "sc" / "MiPlaits.sc").write_text("pl")
             dest = tmp / "classes"
@@ -163,7 +164,7 @@ class Classes(unittest.TestCase):
             manifest = {"isospin": PIN, "sources": [{**PLAITS, "classes": ["sc/MiPlaits.sc"]}]}
             files = prepare.class_files(manifest, tmp, tmp / "isospin")
             prepare.sync_classes(files, dest)
-            self.assertEqual(sorted(p.name for p in dest.iterdir()), ["MiPlaits.sc", "PhysWoodbar.sc"])
+            self.assertEqual(sorted(p.name for p in dest.iterdir()), ["IsoWoodbar.sc", "MiPlaits.sc"])
 
     def test_two_classes_with_one_name_stop(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -266,6 +267,15 @@ class PrepareIsospin(unittest.TestCase):
         self.assertEqual((self.out / "src" / "Woodbar.cpp").read_text(), "// ugen\n")
         self.assertEqual((self.out / ".sha256").read_text().strip(), self.sha256)
         self.assertTrue((self.downloads / "isospin-sc-static-0.2.0.tar.gz").is_file())
+
+    def test_unpacked_files_get_the_time_of_the_unpack(self):
+        # A release tarball has fixed file times, older than the objects of a
+        # build of an earlier release. With the time of the archive, a build
+        # tool would see the new sources as unchanged and keep the old objects.
+        before = time.time() - 1
+        self.run_prepare({"version": "0.2.0", "sha256": self.sha256}, self.env)
+        for path in (self.out / "BUILDINFO", self.out / "src" / "Woodbar.cpp"):
+            self.assertGreaterEqual(path.stat().st_mtime, before, path.name)
 
     def test_does_not_unpack_the_same_release_again(self):
         pin = {"version": "0.2.0", "sha256": self.sha256}
