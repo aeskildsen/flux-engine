@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Native SuperPos test. Plays the SuperPos test cloud in headless SuperSonic
-# (build/native/SuperSonic) and renders it in native scsynth, with SuperPos and
+# Native IsoSuperPos test. Plays the IsoSuperPos test cloud in headless SuperSonic
+# (build/native/SuperSonic) and renders it in native scsynth, with IsoSuperPos and
 # with the same cloud made of Impulse, Phasor and GrainBuf, and other test
 # renders (see native-superpos-render.scd). Then it compares them
 # (compare-superpos.py, compare-superpos-live.py).
 #
-# The SuperPos class and the native plugin come from the isospin UGens of the
+# The IsoSuperPos class and the native plugin come from the isospin UGens of the
 # build (build/isospin), as in native-woodbar.sh. sclang and scsynth use only
 # these and their own class library and plugins.
 #
@@ -22,7 +22,7 @@ unset LD_LIBRARY_PATH
 
 [ -x "$server" ] || { echo "native-superpos: no $server (run scripts/build-native.sh)" >&2; exit 1; }
 [ -f "$root/build/isospin/isospin.cmake" ] || { echo "native-superpos: no build/isospin (run scripts/prepare.py)" >&2; exit 1; }
-[ -f "$root/build/isospin/classes/SuperPos.sc" ] || { echo "native-superpos: the isospin UGens have no SuperPos" >&2; exit 1; }
+[ -f "$root/build/isospin/classes/IsoSuperPos.sc" ] || { echo "native-superpos: the isospin UGens have no IsoSuperPos" >&2; exit 1; }
 rm -rf "$out"
 mkdir -p "$out"
 

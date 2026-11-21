@@ -1,8 +1,8 @@
 /**
- * PhysWoodbar in the web engine, in SAB and in postMessage mode.
+ * IsoWoodbar in the web engine, in SAB and in postMessage mode.
  *
  * test/assets/wb.scsyndef is the woodbar test SynthDef (made by
- * test/make-synthdef.scd with the PhysWoodbar class). Each test strikes one
+ * test/make-synthdef.scd with the IsoWoodbar class). Each test strikes one
  * note and checks the shape of the sound: loud enough, decays, and the left
  * and right channels differ (the two pickups of the bar).
  *
@@ -67,7 +67,7 @@ test("the page and the engine use the expected transport mode", async ({ harness
   expect(result.isolated).toBe(sonicMode === "sab");
 });
 
-test("PhysWoodbar makes a decaying stereo sound at the output node", async ({ harness, sonicConfig }) => {
+test("IsoWoodbar makes a decaying stereo sound at the output node", async ({ harness, sonicConfig }) => {
   const result = await harness.evaluate(
     async ({ config, BOOT }) => {
       eval(BOOT);
@@ -132,7 +132,7 @@ test("PhysWoodbar makes a decaying stereo sound at the output node", async ({ ha
   expect(result.lrDiff).toBeGreaterThan(0.001);
 });
 
-test("PhysWoodbar in the audio capture", async ({ harness, sonicConfig, sonicMode }) => {
+test("IsoWoodbar in the audio capture", async ({ harness, sonicConfig, sonicMode }) => {
   test.skip(sonicMode !== "sab", "audio capture reads shared memory (SAB mode only)");
   const result = await harness.evaluate(
     async ({ config, BOOT }) => {

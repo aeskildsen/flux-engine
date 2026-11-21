@@ -1,20 +1,20 @@
-// Renders the SuperPos tests in native scsynth (non-real-time mode), 2 s each,
+// Renders the IsoSuperPos tests in native scsynth (non-real-time mode), 2 s each,
 // stereo, 32-bit float, into the folder given as the first argument:
-//   sp.wav, sp_grainbuf.wav        SuperPos and the same cloud with GrainBuf
+//   sp.wav, sp_grainbuf.wav        IsoSuperPos and the same cloud with GrainBuf
 //   sp_03.wav, sp_grainbuf_03.wav  the same at grainDur 0.03
 //   sp_o3.wav, sp_grainbuf_o3.wav  the same at overlap 3, grainDur 0.027:
 //                                  overlap 4 is a power of two, so
 //                                  overlap * (1 / grainDur) would be exact
 //                                  there too, and only an overlap like 3
 //                                  shows the float division
-//   sp_v1.wav                      the SuperPos SynthDef of the first class
+//   sp_v1.wav                      the IsoSuperPos SynthDef of the first class
 //                                  file (one output, assets/sp_v1.scsyndef)
 //   sp_seed1a.wav, sp_seed1b.wav, sp_seed2.wav
 //                                  sp_seeded with seed 1 (twice) and seed 2
 //   sp_pool1.wav, sp_pool64.wav    sp_seeded at overlap 8 with a pool of 1
 //                                  and of 64 grains
 //   sp_live_open.wav, sp_live_frozen.wav
-//                                  SuperPosLive (see renderLive)
+//                                  IsoSuperPosLive (see renderLive)
 // UGEN_PLUGINS_PATH (folders separated by ":") is the plugin path of scsynth.
 //   sclang native-superpos-render.scd <folder>
 var dir = thisProcess.argv[0];
@@ -39,7 +39,7 @@ render = { |load, defName, name, args, next|
     Score.recordNRT(score, dir +/+ name ++ ".osc", dir +/+ name ++ ".wav", options: options, duration: 2.0,
         headerFormat: "WAV", sampleFormat: "float", action: next);
 };
-// SuperPosLive, 2 s: open (sp_live_open.wav) and frozen at 0.5 s
+// IsoSuperPosLive, 2 s: open (sp_live_open.wav) and frozen at 0.5 s
 // (sp_live_frozen.wav).
 renderLive = { |name, freezeAt, next|
     var score = [

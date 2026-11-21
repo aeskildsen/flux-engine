@@ -1,7 +1,7 @@
 /**
- * SuperPosLive (isospin) in the web engine, in SAB and in postMessage mode.
+ * IsoSuperPosLive (isospin) in the web engine, in SAB and in postMessage mode.
  *
- * test/assets/sp_live.scsyndef is the SuperPosLive test SynthDef (made by
+ * test/assets/sp_live.scsyndef is the IsoSuperPosLive test SynthDef (made by
  * test/make-superpos-synthdefs.scd; test/native-superpos.sh checks that the
  * fixture is the same as the SynthDef that the class makes). Its input is a
  * sine made in the engine, so no device input is needed. The test allocates
@@ -45,7 +45,7 @@ const test = base.extend({
   },
 });
 
-test("SuperPosLive plays its input from the record buffer at the output node", async ({ harness, sonicConfig }) => {
+test("IsoSuperPosLive plays its input from the record buffer at the output node", async ({ harness, sonicConfig }) => {
   const result = await harness.evaluate(
     async ({ config, frames }) => {
       const sonic = new window.SuperSonic(config);
