@@ -86,7 +86,7 @@ test/make-battery.sh
 npx playwright test -c test/web
 ```
 
-The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`).
+The web build took about 2 minutes on a desktop machine (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`).
 
 The **test battery** (`test/web/battery.spec.mjs`) covers every UGen of the package with no test code of its own. `test/make-battery.sh` (needs sclang, as the native test) writes one SynthDef for each class file in `build/classes`: the UGen with its default inputs. For each UGen the battery checks that the SynthDef loads and plays with no `/fail` and with finite output, and that the engine keeps real time with 16 nodes of it (the CPU budget). The web engine reports no CPU load, so the budget check counts the blocks that the engine processes in 2 s: at least 90 % of `sampleRate / 128` a second. The default inputs need not make a sound (`IsoWoodbar` strikes only on a gate); the specs of each UGen check the sound.
 
@@ -134,10 +134,10 @@ The result is in `build/package`:
 
 The version is `<SuperSonic version>-flux.<n>`, from `engine-version.env`. A development build (isospin from `ISOSPIN_DIR`, or a working tree with changes) gets the suffix `-dev` and `kind=development` in `BUILDINFO`. Do not release it.
 
-To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the package folder when you start Flux's dev server (see Flux's README):
+To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the package folder when you start Flux's dev server (see Flux's README). `<flux-engine>` is the folder of this repository:
 
 ```sh
-FLUX_ENGINE_DIR=~/gp/audio/flux-engine/build/package/latest pnpm dev
+FLUX_ENGINE_DIR=<flux-engine>/build/package/latest pnpm dev
 ```
 
 ## Release
