@@ -1,17 +1,18 @@
-"""Compares the SuperPos renders of native-superpos.sh, in the folder given as
+"""Compares the IsoSuperPos renders of native-superpos.sh, in the folder given as
 the argument.
 
-1. SuperPos against the same cloud made of Impulse, Phasor and GrainBuf, in
+1. IsoSuperPos against the same cloud made of Impulse, Phasor and GrainBuf, in
    native scsynth: sp.wav with sp_grainbuf.wav, sp_03.wav with
    sp_grainbuf_03.wav (grainDur 0.03), and sp_o3.wav with sp_grainbuf_o3.wav
    (overlap 3, grainDur 0.027). They must be the same, bit for bit, over the
    whole render.
-2. supersonic.wav (SuperPos in headless SuperSonic, 24-bit) against sp.wav.
+2. supersonic.wav (IsoSuperPos in headless SuperSonic, 24-bit) against sp.wav.
    The SuperSonic recording starts with silence, so both are aligned at their
    first non-zero frame. The limit is two steps of a 24-bit sample.
-3. sp_v1.wav: a SynthDef from the first SuperPos class file (one output).
-   SuperPos must refuse it: the render is complete and silent, and
-   render.log has the message of SuperPos (a silent render alone would also
+3. sp_v1.wav: a SynthDef from the first class file of IsoSuperPos, when it
+   was SuperPos (one output).
+   IsoSuperPos must refuse it: the render is complete and silent, and
+   render.log has the message of IsoSuperPos (a silent render alone would also
    come from a SynthDef that did not load).
 4. sp_seeded with RandSeed: seed 1 twice gives the same render; seed 2 gives
    a different one.
@@ -112,7 +113,7 @@ def largest_difference(name, a, b, n):
     return worst
 
 
-# 1. SuperPos against GrainBuf, bit for bit.
+# 1. IsoSuperPos against GrainBuf, bit for bit.
 for sp_name, ref_name in (("sp", "sp_grainbuf"), ("sp_03", "sp_grainbuf_03"), ("sp_o3", "sp_grainbuf_o3")):
     sp, sp_peak = load(sp_name)
     ref, ref_peak = load(ref_name)
@@ -133,7 +134,7 @@ else:
     n = min(len(live) - nz_live, PLAY_FRAMES - nz_sp)
     if n < RATE:
         failures.append(f"SuperSonic against scsynth: only {n} frames to compare")
-    worst = largest_difference("SuperSonic against scsynth (SuperPos)", live[nz_live:], sp[nz_sp:], n)
+    worst = largest_difference("SuperSonic against scsynth (IsoSuperPos)", live[nz_live:], sp[nz_sp:], n)
     if not worst <= SUPERSONIC_MAX_DIFF:
         failures.append(f"SuperSonic against scsynth: largest difference {worst:.2e}, "
                         f"limit {SUPERSONIC_MAX_DIFF:.2e}")
@@ -143,10 +144,10 @@ _, v1_peak = load("sp_v1")
 if v1_peak != 0.0:
     failures.append(f"sp_v1: peak {v1_peak:.3f}, expected silence")
 log = open(os.path.join(folder, "render.log"), errors="replace").read()
-if "SuperPos: the SynthDef has a SuperPos UGen with 1 outputs" not in log:
-    failures.append("sp_v1: render.log has no message from SuperPos about the outputs (did the SynthDef load?)")
+if "IsoSuperPos: the SynthDef has an IsoSuperPos or IsoSuperPosLive UGen with 1 outputs" not in log:
+    failures.append("sp_v1: render.log has no message from IsoSuperPos about the outputs (did the SynthDef load?)")
 else:
-    print("sp_v1: SuperPos refused the SynthDef with one output (message in render.log)")
+    print("sp_v1: IsoSuperPos refused the SynthDef with one output (message in render.log)")
 
 # 4. RandSeed.
 seed1a, peak1 = load("sp_seed1a")

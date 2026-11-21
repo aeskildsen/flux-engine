@@ -1,4 +1,4 @@
-"""Plays the SuperPos test cloud in headless native SuperSonic and records it.
+"""Plays the IsoSuperPos test cloud in headless native SuperSonic and records it.
 
 The same steps as native-headless-test.py (Unix socket, per-boot secret,
 /clockwork/auth), with the test buffer first: /b_alloc and /b_gen sine1, as in

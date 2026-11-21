@@ -1,5 +1,5 @@
 /**
- * A measurement, not a test: how many SuperPos voices the web engine can play
+ * A measurement, not a test: how many IsoSuperPos voices the web engine can play
  * in real time, at overlap 5, 20 and 60. It runs only when SUPERPOS_CPU is set:
  *
  *   scripts/in-image.sh env SUPERPOS_CPU=1 npx playwright test -c test/web superpos-cpu
@@ -7,7 +7,7 @@
  * SuperSonic gives no DSP load on the web, so the measurement uses the count
  * of processed blocks, as battery.spec.mjs does: for each overlap the voice
  * count doubles until the engine processes less than MIN_RATE of its blocks
- * in real time. Each voice is the SuperPos test SynthDef (test/assets/
+ * in real time. Each voice is the IsoSuperPos test SynthDef (test/assets/
  * sp.scsyndef: grainDur 0.05, transpose 7, normalize 0, 64 grains) on the test
  * buffer. The result is printed; the run fails only on a /fail.
  */
@@ -44,7 +44,7 @@ const test = base.extend({
 test.skip(!process.env.SUPERPOS_CPU, "a measurement; set SUPERPOS_CPU=1 to run it");
 test.setTimeout(300000);
 
-test("SuperPos voices in real time on the web", async ({ harness, sonicConfig }) => {
+test("IsoSuperPos voices in real time on the web", async ({ harness, sonicConfig }) => {
   const results = await harness.evaluate(
     async ({ config, frames, partials, overlaps, voiceSteps, minRate, block }) => {
       const sonic = new window.SuperSonic(config);

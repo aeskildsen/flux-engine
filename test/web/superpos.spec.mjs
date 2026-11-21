@@ -1,7 +1,7 @@
 /**
- * SuperPos (isospin) in the web engine, in SAB and in postMessage mode.
+ * IsoSuperPos (isospin) in the web engine, in SAB and in postMessage mode.
  *
- * test/assets/sp.scsyndef is the SuperPos test SynthDef (made by
+ * test/assets/sp.scsyndef is the IsoSuperPos test SynthDef (made by
  * test/make-superpos-synthdefs.scd; test/native-superpos.sh checks that the
  * fixture is the same as the SynthDef that the class makes). The test fills
  * the test buffer as superpos-synthdefs.scd does (/b_alloc, then /b_gen
@@ -46,7 +46,7 @@ const test = base.extend({
   },
 });
 
-test("SuperPos plays a cloud from a buffer at the output node", async ({ harness, sonicConfig }) => {
+test("IsoSuperPos plays a cloud from a buffer at the output node", async ({ harness, sonicConfig }) => {
   const result = await harness.evaluate(
     async ({ config, frames, partials }) => {
       const sonic = new window.SuperSonic(config);

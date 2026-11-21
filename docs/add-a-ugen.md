@@ -2,7 +2,7 @@
 
 This guide follows one third-party UGen, `MiPlaits` from [mi-UGens](https://github.com/v7b1/mi-UGens), from its source files to a note in [Flux](https://github.com/aeskildsen/flux). Each step names the file that does the work. At the end there is a checklist for the next UGen.
 
-UGens from [isospin](https://github.com/aeskildsen/isospin) (Faust instruments and hand-written C++ such as `SuperPos`) take a shorter path: isospin releases the C++ sources and the class files, and this repository downloads that release. See [isospin UGens](#isospin-ugens).
+UGens from [isospin](https://github.com/aeskildsen/isospin) (Faust instruments and hand-written C++ such as `IsoSuperPos`) take a shorter path: isospin releases the C++ sources and the class files, and this repository downloads that release. See [isospin UGens](#isospin-ugens).
 
 ## Why the path is long
 

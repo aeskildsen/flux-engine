@@ -27,7 +27,9 @@ SuperSonic links all UGens statically into the engine; it cannot load plugins at
 
 | UGen | Source |
 |---|---|
-| `PhysWoodbar` | `woodbar.dsp` in [isospin](https://github.com/aeskildsen/isospin) |
+| `IsoWoodbar` | `woodbar.dsp` in [isospin](https://github.com/aeskildsen/isospin) |
+| `IsoPulsar` | hand-written C++ in [isospin](https://github.com/aeskildsen/isospin) (`native/pulsar/`) |
+| `IsoSuperPos`, `IsoSuperPosLive` | hand-written C++ in [isospin](https://github.com/aeskildsen/isospin) (`native/superpos/`) |
 | `MiPlaits` | [mi-UGens](https://github.com/v7b1/mi-UGens) (Mutable Instruments Plaits), with `patches/mi-UGens/miplaits-rt-alloc.patch` and `patches/mi-UGens/miplaits-plural-guest.patch`. Its first input is a MIDI note, not Hz. |
 
 ## Add a UGen
@@ -58,7 +60,7 @@ scripts/in-image.sh test/native-woodbar.sh
 
 `test/native-woodbar.sh` compares the headless SuperSonic with a render in native scsynth. It also needs sclang and scsynth 3.14.1 on `PATH` (the toolchain image has them from nixpkgs), and numpy for `python3` (else `uv`). It builds the isospin UGens as a plugin for native scsynth (`test/native-plugin`) and takes their classes from `build/isospin/classes`; it does not use the SuperCollider extensions of the machine. It also checks that the SynthDef that the class makes is the same as the fixture of the web tests (`test/assets/wb.scsyndef`).
 
-`test/native-superpos.sh` does the same for the SuperPos granular UGen of isospin, with a test buffer that `/b_gen` fills (the engine reads no files). It also renders the same cloud made of SuperCollider's own `Impulse`, `Phasor` and `GrainBuf` in native scsynth: SuperPos must give the same output (`test/compare-superpos.py`). For SuperPosLive it renders a sine input that changes from 440 to 880 Hz, once with the recording open and once frozen, and checks that the output follows the input or keeps it (`test/compare-superpos-live.py`). The SynthDefs are in `test/superpos-synthdefs.scd`; the web fixtures are `test/assets/sp.scsyndef` and `test/assets/sp_live.scsyndef`. `test/web/superpos-cpu.spec.mjs` is a measurement, not a test: with `SUPERPOS_CPU=1` it finds how many SuperPos voices the web engine plays in real time at overlap 5, 20 and 60.
+`test/native-superpos.sh` does the same for the IsoSuperPos granular UGen of isospin, with a test buffer that `/b_gen` fills (the engine reads no files). It also renders the same cloud made of SuperCollider's own `Impulse`, `Phasor` and `GrainBuf` in native scsynth: IsoSuperPos must give the same output (`test/compare-superpos.py`). For IsoSuperPosLive it renders a sine input that changes from 440 to 880 Hz, once with the recording open and once frozen, and checks that the output follows the input or keeps it (`test/compare-superpos-live.py`). The SynthDefs are in `test/superpos-synthdefs.scd`; the web fixtures are `test/assets/sp.scsyndef` and `test/assets/sp_live.scsyndef`. `test/web/superpos-cpu.spec.mjs` is a measurement, not a test: with `SUPERPOS_CPU=1` it finds how many IsoSuperPos voices the web engine plays in real time at overlap 5, 20 and 60.
 
 The scripts also run on a host that has the toolchain: SuperSonic's (CMake, a C++ compiler, Rust, the audio development libraries), Python 3.11 or later, and for the tests sclang, scsynth and numpy as above. Use `--clean` on the build scripts when you change between the host and the image.
 
@@ -84,9 +86,9 @@ test/make-battery.sh
 npx playwright test -c test/web
 ```
 
-The web build took about 2 minutes on baldur (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`).
+The web build took about 2 minutes on a desktop machine (first build, empty caches). The tests play the woodbar test SynthDef (`test/assets/wb.scsyndef`, made by `test/make-synthdef.scd`) and the MiPlaits test SynthDef (`test/assets/plaits_test.scsyndef`, made by `test/make-plaits-synthdef.scd`; each of the 24 engines must sound, with no NaN and no `/fail`).
 
-The **test battery** (`test/web/battery.spec.mjs`) covers every UGen of the package with no test code of its own. `test/make-battery.sh` (needs sclang, as the native test) writes one SynthDef for each class file in `build/classes`: the UGen with its default inputs. For each UGen the battery checks that the SynthDef loads and plays with no `/fail` and with finite output, and that the engine keeps real time with 16 nodes of it (the CPU budget). The web engine reports no CPU load, so the budget check counts the blocks that the engine processes in 2 s: at least 90 % of `sampleRate / 128` a second. The default inputs need not make a sound (`PhysWoodbar` strikes only on a gate); the specs of each UGen check the sound.
+The **test battery** (`test/web/battery.spec.mjs`) covers every UGen of the package with no test code of its own. `test/make-battery.sh` (needs sclang, as the native test) writes one SynthDef for each class file in `build/classes`: the UGen with its default inputs. For each UGen the battery checks that the SynthDef loads and plays with no `/fail` and with finite output, and that the engine keeps real time with 16 nodes of it (the CPU budget). The web engine reports no CPU load, so the budget check counts the blocks that the engine processes in 2 s: at least 90 % of `sampleRate / 128` a second. The default inputs need not make a sound (`IsoWoodbar` strikes only on a gate); the specs of each UGen check the sound.
 
 All web tests run in two modes:
 
@@ -132,10 +134,10 @@ The result is in `build/package`:
 
 The version is `<SuperSonic version>-flux.<n>`, from `engine-version.env`. A development build (isospin from `ISOSPIN_DIR`, or a working tree with changes) gets the suffix `-dev` and `kind=development` in `BUILDINFO`. Do not release it.
 
-To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the package folder when you start Flux's dev server (see Flux's README):
+To use the package in Flux during development, set `FLUX_ENGINE_DIR` to the package folder when you start Flux's dev server (see Flux's README). `<flux-engine>` is the folder of this repository:
 
 ```sh
-FLUX_ENGINE_DIR=~/gp/audio/flux-engine/build/package/latest pnpm dev
+FLUX_ENGINE_DIR=<flux-engine>/build/package/latest pnpm dev
 ```
 
 ## Release

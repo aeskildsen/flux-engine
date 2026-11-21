@@ -11,7 +11,7 @@
  *  - CPU budget: with VOICES nodes of the UGen, the engine still processes
  *    its blocks in real time.
  *
- * The default inputs need not make a sound (PhysWoodbar strikes only on a
+ * The default inputs need not make a sound (IsoWoodbar strikes only on a
  * gate), so the battery does not check for sound. The specs of each UGen
  * (woodbar.spec.mjs, plaits.spec.mjs) check that.
  *

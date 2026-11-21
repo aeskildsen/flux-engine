@@ -1,4 +1,4 @@
-"""Checks the SuperPosLive renders (native-superpos-render.scd).
+"""Checks the IsoSuperPosLive renders (native-superpos-render.scd).
 
 The input is a sine at 440 Hz for 1 s and 880 Hz after. The grains play the
 input 0.1 s behind the record head. So:
